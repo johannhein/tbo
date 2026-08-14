@@ -1,10 +1,11 @@
-# bvc_cup/models/tournament.py
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Literal, Optional, Any
 
+
 MatchID = str
+StageID = str
 
 
 class StageType(Enum):
@@ -14,6 +15,7 @@ class StageType(Enum):
     FINAL = "final"
     PLAYOFF = "playoff"     # z. B. 3. Platz, 5. Platz etc.
 
+
 class MatchMode(Enum):
     BEST_OF_3 = "best_of_3"
     BEST_OF_5 = "best_of_5"
@@ -21,11 +23,23 @@ class MatchMode(Enum):
     SETS_2 = "2 Sätze"  # 2 Sätze, kein Tiebreak
     SETS_1 = "1 Satz"   # 1 Satz, kein Tiebreak
 
+# -------------------------------------------------
+# Mapping von UI‑Text → MatchMode‑Enum
+# -------------------------------------------------
+SET_MODE_MAP: dict[str, MatchMode] = {
+    "1 Satz":   MatchMode.SETS_1,
+    "2 Sätze":  MatchMode.SETS_2,
+    "3 Sätze":  MatchMode.SETS_3,
+    "BEST OF 3": MatchMode.BEST_OF_3,
+    "BEST OF 5": MatchMode.BEST_OF_5,
+}
+
 
 @dataclass
 class Match:
     id: MatchID
     court: int
+    # set_num: int
     t1: str
     t2: str
     ref: str | None
@@ -36,10 +50,11 @@ class Match:
     sets: Dict[int, List[int, int]] | None = None
     stage_id: str | None = None  # auf welcher Runde das Spiel stattfindet
 
-    def set_result(self, winner: str, score: Dict[str, int]):
+    def set_result(self, winner: str, sets: Dict[int, List[int, int]]):
         self.winner = winner
-        self.score = score
+        self.sets = sets
         self.time = self.time or "played"  # oder aktuelle Zeit
+
 
 @dataclass
 class Tournament:
@@ -47,7 +62,7 @@ class Tournament:
     type: str  # z. B. "Damen", "Herren" "Quattro"
     courts: List[int]
     stages: Dict[str, Stage] = field(default_factory=dict)
-    current_stage_id: Optional[str] = None
+    current_stage_id: str | None = None
     status: str = "planning"  # planning, running, finished
 
     def add_stage(self, stage: Stage):
@@ -163,13 +178,16 @@ class Tournament:
 
 @dataclass
 class Stage:
-    id: str  # z. B. "round_1", "group_a", "quarterfinals"
+    id: StageID  # z. B. "round_1", "group_a", "quarterfinals"
     type: StageType
-    modus: MatchMode
-    settings: Dict[str, Any] = field(default_factory=dict)
+    modus: MatchMode = None
+    points: int = None
+    tiebreak: int | None = None
     matches: List[Match] = field(default_factory=list)
     teams: List[str] = field(default_factory=list)
-    next_stages: List[str] = field(default_factory=list)  # IDs der nächsten Runden
+    groups: List[Group] | None = None
+    prev_stage: StageID = None
+    next_stages: List[StageID] = field(default_factory=list)  # IDs der nächsten Runden
     is_completed: bool = False
     results: Dict[str, Any] = field(default_factory=dict)  # z. B. Platzierungen, Gewinner
 
@@ -196,6 +214,7 @@ class Stage:
 class Group:
     name: str
     teams: List[str]
+    assigned_courts: List[int] = field(default_factory=list)
     settings: GroupSettings | None = None
 
     def __init__(self, name: str, teams: List[str] = None):
@@ -209,15 +228,59 @@ class Group:
     def add_member(self, team_name: str):
         self.teams.append(team_name)
 
+    def swap_teams(self, index1: int, index2: int):
+        """
+        Tauscht zwei Teams in der Liste an den gegebenen Indizes.
+
+        :param index1: Index des ersten Teams
+        :param index2: Index des zweiten Teams
+        :raises IndexError: Wenn ein Index ungültig ist
+        :raises ValueError: Wenn die Indizes gleich sind
+        """
+        if not (0 <= index1 < len(self.teams)):
+            raise IndexError(f"Index {index1} ist außerhalb des gültigen Bereichs (0 bis {len(self.teams) - 1})")
+        if not (0 <= index2 < len(self.teams)):
+            raise IndexError(f"Index {index2} ist außerhalb des gültigen Bereichs (0 bis {len(self.teams) - 1})")
+        if index1 == index2:
+            raise ValueError("Beide Indizes sind gleich – kein Tausch nötig.")
+
+        self.teams[index1], self.teams[index2] = self.teams[index2], self.teams[index1]
+
+    def swap_teams_by_name(self, team_name1: str, team_name2: str):
+        """
+        Tauscht zwei Teams in der Liste anhand ihres Namens.
+
+        :param team_name1: Name des ersten Teams
+        :param team_name2: Name des zweiten Teams
+        :raises ValueError: Wenn eines der Teams nicht gefunden wird oder die Namen gleich sind
+        """
+        if team_name1 == team_name2:
+            raise ValueError("Beide Team-Namen sind gleich – kein Tausch nötig.")
+
+        try:
+            index1 = self.teams.index(team_name1)
+            index2 = self.teams.index(team_name2)
+        except ValueError as e:
+            raise ValueError(f"Ein Team wurde nicht gefunden: {e}")
+
+        self.teams[index1], self.teams[index2] = self.teams[index2], self.teams[index1]
+
+    def assign_courts(self, court_numbers: List[int]):
+        """Weist konkrete Felder zu."""
+        if not court_numbers:
+            raise ValueError("Mindestens ein Feld muss zugewiesen werden.")
+        self.assigned_courts = sorted(court_numbers)
+
+
 @dataclass
 class GroupSettings:
-    sets: str
+    modus: MatchMode
     points: int
     tiebreak: int | None = None
 
     def to_dict(self) -> dict:
         return {
-            "sets": self.sets,
+            "modus": self.modus,
             "points": self.points,
             "tiebreak": self.tiebreak
         }
@@ -225,10 +288,11 @@ class GroupSettings:
     @classmethod
     def from_dict(cls, data: dict) -> "GroupSettings":
         return cls(
-            sets=data["sets"],
+            modus=data["modus"],
             points=data["points"],
             tiebreak=data.get("tiebreak")
         )
+
 
 @dataclass
 class Team:

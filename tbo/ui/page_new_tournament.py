@@ -8,10 +8,41 @@ import pandas as pd
 
 from config.constants import IMPORT_DIR
 from services import tournament_manager
-from services.persistence import list_csv_files
+from services.persistence import list_csv_files, save_tournament
 from core.models import Team, Group
-from ui.utils import load_csv, get_tournament_types, show_error, show_success, get_incomplete_groups, get_team_column, \
+from ui.utils import load_csv, get_tournament_types, show_success, show_error, get_incomplete_groups, get_team_column, \
     rebuild_category_df
+
+def get_default_court_assignments(groups: Dict[str, Group], available_courts: List[int]) -> Dict[str, List[int]]:
+    """
+    Gibt die Standard-Zuweisung zurück:
+    - Gruppe A → kleinstes Feld
+    - Gruppe B → nächstes
+    - usw.
+
+    :param groups: Dict[str, Group] – Gruppen mit Namen (A, B, C, ...)
+    :param available_courts: Liste der verfügbaren Felder (z. B. [1, 2, 3, 4])
+    :return: Dict mit Gruppenname → zugewiesene Felder
+    """
+    if not available_courts:
+        return {name: [] for name in groups.keys()}
+
+    # Sortiere Gruppen nach Namen (A, B, C, ...)
+    sorted_group_names = sorted(groups.keys())
+
+    # Sortiere Felder
+    sorted_courts = sorted(available_courts)
+
+    # Zuweisung: A → 1. Feld, B → 2. Feld, usw.
+    assignment = {}
+    for i, name in enumerate(sorted_group_names):
+        if i < len(sorted_courts):
+            assignment[name] = [sorted_courts[i]]
+        else:
+            assignment[name] = []  # Kein Feld mehr
+
+    return assignment
+
 
 def calculate_group_size(total_teams: int, num_groups: int) -> int:
     """
@@ -208,9 +239,16 @@ def ui_basic_settings(num_teams: int) -> dict:
     col1, col2 = st.columns(2)
 
     with col1:
+        # ✅ Setze value auf den aktuellen Wert
         num_groups = st.number_input(
-            "Anzahl der Gruppen", min_value=1, max_value=99, value=4, step=1, key="num_groups"
+            "Anzahl der Gruppen",
+            min_value=1,
+            max_value=max(4, len(st.session_state["selected_courts"])),
+            value=max(4, len(st.session_state["selected_courts"])),
+            step=1,
+            key="num_groups"
         )
+
     with col2:
         start_time = st.time_input(
             "Startzeit", value=datetime.time(10, 0), key="start_time"
@@ -463,6 +501,12 @@ def ui_game_modes(num_groups: int, incomplete_groups: List[str]) -> None:
 def tab_new_tournament() -> None:
     st.header("🆕 Neues Turnier erstellen")
 
+    st.session_state.setdefault("assign_group_refs", True)  # ← Standard‑Wert
+    st.session_state.setdefault("game_modes", {
+        "complete": {"sets": "1 Satz", "points": 15, "tiebreak": 11},
+        "incomplete": {"sets": "1 Satz", "points": 15, "tiebreak": 11},
+    })
+
     # -------------------------------------------------
     # 1️⃣ CSV auswählen / laden
     # -------------------------------------------------
@@ -476,7 +520,6 @@ def tab_new_tournament() -> None:
     # -------------------------------------------------
     # 2️⃣ Turnier‑Kategorie auswählen
     # -------------------------------------------------
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -485,7 +528,9 @@ def tab_new_tournament() -> None:
             return
 
     with col2:
-        ui_select_courts()
+        new_selected = ui_select_courts()
+
+        st.session_state["selected_courts"] = new_selected
 
     # -------------------------------------------------
     # 3️⃣ Daten für die gewählte Kategorie filtern
@@ -550,16 +595,59 @@ def tab_new_tournament() -> None:
         st.session_state["expected_size"] = expected_size
         st.rerun()
 
-    # -------------------------------------------------
-    # 10️⃣ Weiterer Code (Anzeige, Spiel‑Modi, …) bleibt unverändert
-    # -------------------------------------------------
-    ...
 
     # 11️⃣ Wenn bereits erstellt → Anzeige + weitere Optionen
     if st.session_state.get("groups_created"):
-        show_success("Gruppen wurden bereits erstellt!")
+        st.success("Gruppen wurden bereits erstellt!")
         groups: Dict[str, Group] = st.session_state["groups"]
         ui_show_groups(groups)
+
+
+        st.subheader("🔧 Konkrete Felder pro Gruppe zuweisen")
+
+        groups: Dict[str, Group] = st.session_state["groups"]
+        selected_courts = st.session_state.get("selected_courts", [])
+        max_total_courts = len(selected_courts)
+
+        if max_total_courts == 0:
+            st.warning("⚠️ Keine Felder verfügbar. Bitte wähle mindestens ein Feld aus.")
+            st.stop()
+
+        # ✅ Automatische Voreinstellung
+        if "court_assignments" not in st.session_state:
+            default_assignments = get_default_court_assignments(groups, selected_courts)
+            st.session_state["court_assignments"] = default_assignments
+
+        # Zeige Auswahl
+        cols = st.columns(len(groups))
+        for i, (name, group) in enumerate(groups.items()):
+            with cols[i]:
+                current_courts = st.session_state["court_assignments"].get(name, [])
+                new_courts = st.multiselect(
+                    f"Gruppe {name} – Felder",
+                    options=selected_courts,
+                    default=current_courts,  # ✅ Voreinstellung
+                    key=f"assign_courts_{name}"
+                )
+                st.session_state["court_assignments"][name] = new_courts
+
+        # Summe der zugewiesenen Felder
+        total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
+
+        # Warnung, wenn zu viele Felder zugewiesen
+        if total_assigned > max_total_courts:
+            st.warning(f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {max_total_courts} verfügbar!")
+
+        # Aktualisieren
+        if st.button("💾 Felder zuweisen"):
+            total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
+            if total_assigned > max_total_courts:
+                st.error(f"❌ Zu viele Felder zugewiesen! Nur {max_total_courts} verfügbar.")
+            else:
+                for name, group in groups.items():
+                    group.assigned_courts = st.session_state["court_assignments"][name]
+                st.success(f"✅ Felder wurden zugewiesen: {st.session_state['court_assignments']}")
+                st.rerun()
 
         # ---- Ermittlung unvollständiger Gruppen (wie vorher) ----
         total_teams = sum(len(g.teams) for g in groups.values())
@@ -571,10 +659,11 @@ def tab_new_tournament() -> None:
         st.session_state["incomplete_groups"] = incomplete
 
         # ---- Spiel‑Modi -------------------------------------------------
-        ui_game_modes(settings["num_groups"], incomplete)  # ✅ Jetzt korrekt!
+        ui_game_modes(settings["num_groups"], incomplete)
+
 
     # -------------------------------------------------
-    # 12️⃣ Aufräumen: temporäre Upload‑Datei entfernen (falls vorhanden)
+    # 12️⃣ Aufräumen (temporäre Upload‑Datei)
     # -------------------------------------------------
     if csv_path.name.startswith("tmp_"):
         try:
@@ -583,10 +672,10 @@ def tab_new_tournament() -> None:
             st.warning(f"Konnte temporäre Datei nicht löschen: {exc}")
 
     # Hilfsfunktion für Spieldauer
-    def _calc_duration(sets: str, pts: int) -> int:
-        if "1 Satz" in sets:
-            return 15 if "15" in pts else 20
-        return 35 if "15" in pts else 45
+    # def _calc_duration(sets: str, pts: int) -> int:
+    #     if "1 Satz" in sets:
+    #         return 15 if "15" in pts else 20
+    #     return 35 if "15" in pts else 45
 
     # ------------------------------------------------------------------
     # 4️⃣  Turnier anlegen (nach Klick)
