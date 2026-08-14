@@ -1,22 +1,34 @@
 import datetime
+import math
 import random
 from pathlib import Path
 from typing import List, Dict
-
 import streamlit as st
 import pandas as pd
 
 from config.constants import IMPORT_DIR
 from services import tournament_manager
-from services.persistence import list_csv_files, save_tournament
-from core.models import Team, Group
-from ui.utils import load_csv, get_tournament_types, show_success, show_error, get_incomplete_groups, get_team_column, \
-    rebuild_category_df
+from services.persistence import list_csv_files
+from core.models import Team, Group, Tournament, StageType, StageID, MatchSettings, MATCH_MODE_TO_UI, MatchMode, \
+    UI_TO_MATCH_MODE, SET_MODE_MAP, Stage
+from ui.utils import load_csv, get_tournament_types, get_incomplete_groups
 
 
 # ----------------------------------------------------------------------
 # Hilfsfunktionen
 # ----------------------------------------------------------------------
+def settings_to_ui_values(settings: MatchSettings) -> dict:
+    """
+    Wandelt ein MatchSettings‑Objekt in ein Dictionary um,
+    das von den Streamlit‑Widgets verwendet werden kann.
+    """
+    return {
+        "modus": MATCH_MODE_TO_UI[settings.modus],
+        "points": settings.points,
+        "tiebreak": settings.tiebreak if settings.tiebreak is not None else 11,
+    }
+
+
 def get_default_court_assignments(groups: Dict[str, Group], available_courts: List[int]) -> Dict[str, List[int]]:
     """
     Gibt die Standard-Zuweisung zurück:
@@ -52,7 +64,6 @@ def calculate_group_size(total_teams: int, num_groups: int) -> int:
     """
     Berechnet die minimale Gruppengröße (aufgerundet) aus Anzahl der Teams und Anzahl der Gruppen.
     """
-
     if num_groups <= 0:
         raise ValueError("Anzahl der Gruppen muss größer als 0 sein.")
     if total_teams < 0:
@@ -122,10 +133,10 @@ def build_teams(df_category: pd.DataFrame) -> tuple[List[Team], Dict[str, str]]:
 
 
 def create_groups(team_names: List[str], selected_names: List[str], num_groups: int,) -> tuple[Dict[str, Group], int]:
-    """erstellen der Gruppen mit Gruppenköpfen, gleichmäßige Verteilung der Mnnschaften auf die Gruppen"""
+    """erstellen der Gruppen mit Gruppenköpfen, gleichmäßige Verteilung der Mannschaften auf die Gruppen"""
     # Gruppen-Namen: A, B, C, ...
     group_names = [chr(ord("A") + i) for i in range(num_groups)]
-    groups: Dict[str, Group] = {name: Group(name, []) for name in group_names}
+    groups: Dict[str, Group] = {name: Group(name=name, teams=[], teams_target=st.session_state["group_size"]) for name in group_names}
 
     # Köpfe den Gruppen zuweisen (in Reihenfolge)
     for i, name in enumerate(selected_names):
@@ -276,6 +287,8 @@ def ui_basic_settings(num_teams: int) -> dict:
             key="num_groups"
         )
 
+        st.session_state["group_size"] = math.ceil(num_teams / num_groups)
+
     with col2:
         start_time = st.time_input(
             "Startzeit", value=datetime.time(10, 0), key="start_time"
@@ -337,102 +350,142 @@ def ui_show_groups(groups: Dict[str, Group]) -> None:
                     st.write(team)
 
 
-def ui_game_modes(num_groups: int, incomplete_groups: List[str]) -> None:
-    """UI zum Einstellen der Spiel‑Modi (für vollständige und unvollständige Gruppen)"""
+def ui_game_modes(incomplete_groups: List[str]) -> None:
+    """UI zum Einstellen der Spiel‑Modi für komplette und unvollständige Gruppen."""
     st.subheader("🗂️ Spielmodus")
 
+    # ------------------------------------------------------------------
+    # 1️⃣  Sicherstellen, dass die Session‑State‑Einträge existieren
+    # ------------------------------------------------------------------
+    # -------------------------------------------------
+    # 1️⃣  Initialisierung (einmal beim ersten Aufruf)
+    # -------------------------------------------------
     if "game_modes" not in st.session_state:
+        # Wir legen sofort MatchSettings‑Objekte an – kein dict!
         st.session_state["game_modes"] = {
-            "complete": {"sets": "1 Satz", "points": 15, "tiebreak": 11},
-            "incomplete": {"sets": "1 Satz", "points": 15, "tiebreak": 11}
+            "complete": MatchSettings(modus=MatchMode.SETS_1, points=15, tiebreak=None),
+            "incomplete": MatchSettings(modus=MatchMode.SETS_1, points=15, tiebreak=None),
         }
+    else:
+        # -------------------------------------------------
+        # 2️⃣  Falls bereits ein Eintrag existiert, prüfen wir,
+        #     ob er ein dict ist (z. B. nach einem Reload)
+        # -------------------------------------------------
+        for key in ("complete", "incomplete"):
+            val = st.session_state["game_modes"].get(key)
+            if isinstance(val, dict):
+                # Konvertiere das dict in ein MatchSettings‑Objekt
+                # Erwartete Schlüssel: "modus" (Enum‑oder String), "points", "tiebreak"
+                modus_raw = val["modus"]
+                # Der Modus kann bereits ein Enum sein oder ein UI‑String
+                if isinstance(modus_raw, str):
+                    modus = SET_MODE_MAP[modus_raw]  # String → Enum
+                else:
+                    modus = modus_raw  # Enum → Enum
+                st.session_state["game_modes"][key] = MatchSettings(
+                    modus=modus,
+                    points=int(val["points"]),
+                    tiebreak=int(val["tiebreak"]) if val.get("tiebreak") else None,
+                )
 
-    complete = st.session_state["game_modes"]["complete"]
-    incomplete = st.session_state["game_modes"]["incomplete"]
+    # ------------------------------------------------------------------
+    # 2️⃣  Aktuelle Werte aus dem Session‑State holen und in UI‑Form bringen
+    # ------------------------------------------------------------------
+    complete_settings: MatchSettings   = st.session_state["game_modes"]["complete"]
+    incomplete_settings: MatchSettings = st.session_state["game_modes"]["incomplete"]
 
+    # UI‑Werte (Strings, ints) für die Selectboxen / Number‑Inputs
+    complete_ui   = settings_to_ui_values(complete_settings)
+    incomplete_ui = settings_to_ui_values(incomplete_settings)
 
-    # Einstellungen für vollständige Gruppen
+    # ------------------------------------------------------------------
+    # 3️⃣  Einstellungen für **vollständige** Gruppen
+    # ------------------------------------------------------------------
     st.markdown("#### Vollständige Gruppen")
 
     col1, col2, col3 = st.columns(3)
     with col1:
         sets_complete = st.selectbox(
             "Sätze",
-            ["1 Satz", "2 Sätze", "2 Gewinnsätze"],
-            index=["1 Satz", "2 Sätze", "2 Gewinnsätze"].index(complete["sets"]),
-            key="sets_complete"
+            options=list(MATCH_MODE_TO_UI.values()),
+            index=list(MATCH_MODE_TO_UI.values()).index(complete_ui["modus"]),
+            key="sets_complete",
         )
     with col2:
         points_complete = st.number_input(
             "Punkte",
             min_value=1,
             max_value=99,
-            value=complete["points"],
+            value=complete_ui["points"],
             step=1,
-            key="points_complete"
+            key="points_complete",
         )
     with col3:
-        if sets_complete == "2 Gewinnsätze":
+        # Tiebreak‑Feld nur anzeigen, wenn der Modus „2 Gewinnsätze“ ist
+        if sets_complete == "Best of 3":
             tiebreak_complete = st.number_input(
-                "Tiebreak-Punkte",
+                "Tiebreak‑Punkte",
                 min_value=1,
                 max_value=99,
-                value=complete["tiebreak"],
+                value=11,
                 step=1,
-                key="tiebreak_complete"
+                key="tiebreak_complete",
             )
         else:
-            tiebreak_complete = 11
+            tiebreak_complete = None  # Default‑Wert, wird nicht angezeigt
 
-        st.session_state["game_modes"]["complete"] = {
-            "sets": sets_complete,
-            "points": points_complete,
-            "tiebreak": tiebreak_complete
-        }
+        # Session‑State aktualisieren
+        st.session_state["game_modes"]["complete"] = MatchSettings(
+            modus=UI_TO_MATCH_MODE[sets_complete],
+            points=points_complete,
+            tiebreak=tiebreak_complete,
+        )
 
-    # Einstellungen für unvollständige Gruppen
+    # ------------------------------------------------------------------
+    # 4️⃣  Einstellungen für **unvollständige** Gruppen (falls vorhanden)
+    # ------------------------------------------------------------------
     if incomplete_groups:
-        # → Formatiere als "B, C, D"
         group_names_str = ", ".join(incomplete_groups)
         st.markdown(f"#### Unvollständige Gruppen ({group_names_str})")
+
         col1, col2, col3 = st.columns(3)
         with col1:
             sets_incomplete = st.selectbox(
                 "Sätze",
-                ["1 Satz", "2 Sätze", "2 Gewinnsätze"],
-                index=["1 Satz", "2 Sätze", "2 Gewinnsätze"].index(incomplete["sets"]),
-                key="sets_incomplete"
+                options=list(MATCH_MODE_TO_UI.values()),
+                index=list(MATCH_MODE_TO_UI.values()).index(incomplete_ui["modus"]),
+                key="sets_incomplete",
             )
         with col2:
             points_incomplete = st.number_input(
                 "Punkte",
                 min_value=1,
                 max_value=99,
-                value=incomplete["points"],
+                value=15,
                 step=1,
-                key="points_incomplete"
+                key="points_incomplete",
             )
         with col3:
-            if sets_incomplete == "2 Gewinnsätze":
+            if sets_incomplete == "Best of 3":
                 tiebreak_incomplete = st.number_input(
-                    "Tiebreak-Punkte",
+                    "Tiebreak‑Punkte",
                     min_value=1,
                     max_value=99,
-                    value=incomplete["tiebreak"],
+                    value=11,
                     step=1,
-                    key="tiebreak_incomplete"
+                    key="tiebreak_incomplete",
                 )
             else:
-                tiebreak_incomplete = 11
+                tiebreak_incomplete = None
 
-            # Speichere
-            st.session_state["game_modes"]["incomplete"] = {
-                "sets": sets_incomplete,
-                "points": points_incomplete,
-                "tiebreak": tiebreak_incomplete
-            }
+            # Session‑State aktualisieren
+            st.session_state["game_modes"]["incomplete"] = MatchSettings(
+                modus=UI_TO_MATCH_MODE[sets_incomplete],
+                points=points_incomplete,
+                tiebreak=tiebreak_incomplete,
+            )
     else:
-        st.info("Alle Gruppen sind vollständig. Einheitlicher Spielmodus wird verwendet.")
+        st.info("Alle Gruppen sind vollständig – ein einheitlicher Spielmodus wird verwendet.")
 
 
 # ----------------------------------------------------------------------
@@ -443,8 +496,8 @@ def tab_new_tournament() -> None:
 
     st.session_state.setdefault("assign_group_refs", True)  # ← Standard‑Wert
     st.session_state.setdefault("game_modes", {
-        "complete": {"sets": "1 Satz", "points": 15, "tiebreak": 11},
-        "incomplete": {"sets": "1 Satz", "points": 15, "tiebreak": 11},
+        "complete": {"modus": "1 Satz", "points": 15, "tiebreak": None},
+        "incomplete": {"modus": "1 Satz", "points": 15, "tiebreak": None},
     })
 
     # -------------------------------------------------
@@ -473,6 +526,7 @@ def tab_new_tournament() -> None:
         st.session_state["selected_courts"] = new_selected
 
     df_category = df_all[df_all["Turnier"] == tournament_type]
+    st.session_state["teams"] = df_category["Team"]
 
     # -------------------------------------------------
     # Team‑Namen editieren
@@ -487,7 +541,7 @@ def tab_new_tournament() -> None:
             edited_df=edited,
             tournament_type=tournament_type,
         )
-        st.session_state["df_category"] = df_category
+        st.session_state["teams"] = df_category["Team"]
 
     num_teams = len(df_category)
     settings = ui_basic_settings(num_teams)
@@ -506,7 +560,7 @@ def tab_new_tournament() -> None:
         team_names = [t.id for t in teams]  # Liste der Team-Namen
 
         # Lade die Gruppen-Einstellungen aus Session-State
-        group_settings = st.session_state.get("group_settings", {})
+        st.session_state.get("group_settings", {})
 
         groups, expected_size = create_groups(
             team_names=team_names,
@@ -562,18 +616,11 @@ def tab_new_tournament() -> None:
         if total_assigned > max_total_courts:
             st.warning(f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {max_total_courts} verfügbar!")
 
-        # Aktualisieren
-        if st.button("💾 Felder zuweisen"):
-            total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
-            if total_assigned > max_total_courts:
-                st.error(f"❌ Zu viele Felder zugewiesen! Nur {max_total_courts} verfügbar.")
-            else:
-                for name, group in groups.items():
-                    group.assigned_courts = st.session_state["court_assignments"][name]
-                st.success(f"✅ Felder wurden zugewiesen: {st.session_state['court_assignments']}")
-                st.rerun()
+        st.session_state["max_court"] = max_total_courts
+        st.session_state["groups"] = groups
 
-        # ---- Ermittlung unvollständiger Gruppen (wie vorher) ----
+
+        # Ermittlung unvollständiger Gruppen
         total_teams = sum(len(g.teams) for g in groups.values())
         incomplete = get_incomplete_groups(
             groups=groups,
@@ -585,7 +632,38 @@ def tab_new_tournament() -> None:
     # -------------------------------------------------
     # Spielmodi
     # -------------------------------------------------
-        ui_game_modes(settings["num_groups"], incomplete)
+        ui_game_modes(incomplete)
+
+        # Zuweisung der Spielmodus
+        for name, grp in st.session_state["groups"].items():
+            if grp.complete:
+                grp.settings = st.session_state["game_modes"]["complete"]
+            else:
+                grp.settings = st.session_state["game_modes"]["incomplete"]
+
+    # -------------------------------------------------
+    # Turnier erstellen
+    # -------------------------------------------------
+    if st.button("Turnier erstellen", type="primary"):
+        # Feldbelegungen speichern
+        total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
+        if total_assigned > st.session_state["max_court"]:
+            st.error(f"❌ Zu viele Felder zugewiesen! Nur {st.session_state["max_court"]} verfügbar.")
+        else:
+            for name, group in st.session_state["groups"].items():
+                group.assigned_courts = st.session_state["court_assignments"][name]
+            st.success(f"✅ Felder wurden zugewiesen: {st.session_state['court_assignments']}")
+
+        name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
+        test = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
+
+        # print(st.session_state["groups"])
+
+        group_list: List[Group] = list(st.session_state["groups"].values())
+
+        stage = Stage(id="Vorrunde Gruppenphase", type=StageType.GROUP, teams=st.session_state["teams"], groups=group_list)
+
+        print(stage)
 
 
     # -------------------------------------------------

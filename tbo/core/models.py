@@ -1,8 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Literal, Optional, Any
-
+from typing import List, Dict, Optional, Any, Tuple
 
 MatchID = str
 StageID = str
@@ -30,9 +29,22 @@ SET_MODE_MAP: dict[str, MatchMode] = {
     "1 Satz":   MatchMode.SETS_1,
     "2 Sätze":  MatchMode.SETS_2,
     "3 Sätze":  MatchMode.SETS_3,
-    "BEST OF 3": MatchMode.BEST_OF_3,
-    "BEST OF 5": MatchMode.BEST_OF_5,
+    "Best of 3": MatchMode.BEST_OF_3,
+    "Best of 5": MatchMode.BEST_OF_5,
 }
+
+
+MATCH_MODE_TO_UI = {
+    MatchMode.SETS_1: "1 Satz",
+    MatchMode.SETS_2: "2 Sätze",
+    MatchMode.SETS_3: "3 Sätze",
+    MatchMode.BEST_OF_3: "Best of 3",
+    MatchMode.BEST_OF_5: "Best of 5",
+    # falls du noch weitere Modi hast, ergänze sie hier
+}
+
+# Und das Gegenstück (UI‑Text → Enum) – du hast das bereits als SET_MODE_MAP
+UI_TO_MATCH_MODE = {v: k for k, v in MATCH_MODE_TO_UI.items()}
 
 
 @dataclass
@@ -45,15 +57,49 @@ class Match:
     ref: str | None
     group: str | None = None
     time: str | None = None  # z.B. "14:00"
-    winner: str | None = None  # nach Spiel
-    score: Dict[str, int] | None = None  # z.B. {"t1": 2, "t2": 3} für 2:3
-    sets: Dict[int, List[int, int]] | None = None
+    sets: List[Tuple[int, int]] | None = None
     stage_id: str | None = None  # auf welcher Runde das Spiel stattfindet
 
-    def set_result(self, winner: str, sets: Dict[int, List[int, int]]):
-        self.winner = winner
-        self.sets = sets
-        self.time = self.time or "played"  # oder aktuelle Zeit
+    @property
+    def score(self) -> Tuple[int, int] | None:
+        """
+        Gibt die Satz‑Bilanz als String zurück, z.B. "2:0".
+        Wenn noch keine Sätze gespeichert sind, wird "–" zurückgegeben.
+        """
+        if not self.sets:
+            return None  # kein Ergebnis vorhanden
+
+        t1_won = 0
+        t2_won = 0
+
+        for idx, (p1, p2) in enumerate(self.sets, start=1):
+            if p1 > p2:
+                t1_won += 1
+            elif p2 > p1:
+                t2_won += 1
+            else:
+                pass
+
+        return t1_won,t2_won
+
+
+    @property
+    def winner(self) -> str | None:
+        if self.score[0] > self.score[1]:
+            return self.t1
+        elif self.score[0] < self.score[1]:
+            return self.t2
+        else:
+            return None
+
+    @property
+    def loser(self) -> str | None:
+        if self.score[0] < self.score[1]:
+            return self.t1
+        elif self.score[0] > self.score[1]:
+            return self.t2
+        else:
+            return None
 
 
 @dataclass
@@ -61,6 +107,7 @@ class Tournament:
     name: str
     type: str  # z. B. "Damen", "Herren" "Quattro"
     courts: List[int]
+    teams: List[str]
     stages: Dict[str, Stage] = field(default_factory=dict)
     current_stage_id: str | None = None
     status: str = "planning"  # planning, running, finished
@@ -178,14 +225,11 @@ class Tournament:
 
 @dataclass
 class Stage:
-    id: StageID  # z. B. "round_1", "group_a", "quarterfinals"
+    id: StageID
     type: StageType
-    modus: MatchMode = None
-    points: int = None
-    tiebreak: int | None = None
-    matches: List[Match] = field(default_factory=list)
-    teams: List[str] = field(default_factory=list)
+    teams: List[str]
     groups: List[Group] | None = None
+    matches: List[Match] | None = None
     prev_stage: StageID = None
     next_stages: List[StageID] = field(default_factory=list)  # IDs der nächsten Runden
     is_completed: bool = False
@@ -202,25 +246,33 @@ class Stage:
         # Prüft, ob alle Matches abgeschlossen sind
         return all(match.time is not None for match in self.matches) and len(self.matches) > 0
 
-    def get_next_stages(self) -> List["Stage"]:
-        # Diese Methode wird später von Tournament verwaltet
-        return []
-
     def __repr__(self):
-        return f"Stage(id={self.id}, type={self.type}, teams={len(self.teams)}, matches={len(self.matches)})"
+        return f"Stage(id={self.id}, type={self.type}, teams={self.teams}, matches={self.matches}, groups={self.groups})"
 
 
 @dataclass
 class Group:
     name: str
     teams: List[str]
+    teams_target: int
     assigned_courts: List[int] = field(default_factory=list)
-    settings: GroupSettings | None = None
+    settings: MatchSettings | None = None
 
-    def __init__(self, name: str, teams: List[str] = None):
+    @property
+    def num_teams(self) -> int:
+        return len(self.teams)
+
+    @property
+    def complete(self) -> bool:
+        if self.teams_target == self.num_teams:
+            return True
+        else:
+            return False
+
+    def __init__(self, name: str, teams: List[str], teams_target: int):
         self.name = name
         self.teams = teams or []
-        self.settings = None
+        self.teams_target = teams_target
 
     def add_head(self, team_name: str):
         self.teams.append(team_name)
@@ -273,7 +325,7 @@ class Group:
 
 
 @dataclass
-class GroupSettings:
+class MatchSettings:
     modus: MatchMode
     points: int
     tiebreak: int | None = None
@@ -286,7 +338,7 @@ class GroupSettings:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "GroupSettings":
+    def from_dict(cls, data: dict) -> "MatchSettings":
         return cls(
             modus=data["modus"],
             points=data["points"],
