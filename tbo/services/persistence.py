@@ -1,14 +1,13 @@
-# bvc_cup/services/persistence.py
 import json
-import os
 import random, string
 from pathlib import Path
 from typing import Dict, List
 import pandas as pd
-
-from config.constants import DATA_FILE, GROUP_MATCHES
-
 from charset_normalizer import from_path
+
+from config.constants import DATA_FILE, GROUP_MATCHES, DATA_DIR
+from core.models import Tournament
+
 
 def detect_encoding(csv_path: Path) -> str:
     result = from_path(csv_path).best()
@@ -152,3 +151,24 @@ def save_data(data: dict) -> None:
     """Schreibt das komplette Turnier‑Dictionary zurück."""
     with DATA_FILE.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+def save_tournament(tournament: Tournament) -> None:
+    """Serialisiert das Tournament‑Objekt als JSON."""
+    out_path = DATA_DIR / f"{tournament.name.replace(' ', '_').lower()}.json"
+
+    def _asdict(obj):
+        if isinstance(obj, list):
+            return [_asdict(i) for i in obj]
+        if isinstance(obj, dict):
+            return {k: _asdict(v) for k, v in obj.items()}
+        if hasattr(obj, "__dict__"):
+            return {k: _asdict(v) for k, v in obj.__dict__.items()}
+        return obj
+
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(_asdict(tournament), f, ensure_ascii=False, indent=2)
+
+
+def load_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path, dtype=str).fillna("")
