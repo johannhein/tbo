@@ -1,10 +1,20 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 from typing import List, Dict, Optional, Any, Tuple
 
-MatchID = str
+from services.schedule import SCHEMA_MAP
+
+MatchID = int
 StageID = str
+
+
+class MatchStatus(Enum):
+    """Zustand eines Matches im Turnier."""
+    PENDING   = auto()   # noch nicht gestartet / keine Sätze
+    FINISHED  = auto()   # Sieger ermittelt
+    CANCELLED = auto()   # abgesagt (z. B. wegen Verletzung)
+
 
 
 class StageType(Enum):
@@ -51,55 +61,108 @@ UI_TO_MATCH_MODE = {v: k for k, v in MATCH_MODE_TO_UI.items()}
 class Match:
     id: MatchID
     court: int
-    # set_num: int
     t1: str
     t2: str
-    ref: str | None
-    group: str | None = None
-    time: str | None = None  # z.B. "14:00"
-    sets: List[Tuple[int, int]] | None = None
-    stage_id: str | None = None  # auf welcher Runde das Spiel stattfindet
+    ref: Optional[str] = None
+    sets: List[Tuple[int, int]] = field(default_factory=list)
+    status: MatchStatus = MatchStatus.PENDING
 
     @property
     def score(self) -> Tuple[int, int] | None:
         """
-        Gibt die Satz‑Bilanz als String zurück, z.B. "2:0".
+        Gibt die Satz‑Bilanz als String zurück, z.B. "2,0".
         Wenn noch keine Sätze gespeichert sind, wird "–" zurückgegeben.
         """
         if not self.sets:
-            return None  # kein Ergebnis vorhanden
+            return None
 
-        t1_won = 0
-        t2_won = 0
-
-        for idx, (p1, p2) in enumerate(self.sets, start=1):
-            if p1 > p2:
-                t1_won += 1
-            elif p2 > p1:
-                t2_won += 1
-            else:
-                pass
+        t1_won = sum(1 for p1, p2 in self.sets if p1 > p2)
+        t2_won = sum(1 for p1, p2 in self.sets if p2 > p1)
 
         return t1_won,t2_won
 
+    @property
+    def score_str(self) -> str:
+        """Mensch‑lesbare Darstellung, z.B. "2:1" oder "–"."""
+        s = self.score
+        return f"{s[0]}:{s[1]}" if s else "–"
 
     @property
-    def winner(self) -> str | None:
-        if self.score[0] > self.score[1]:
-            return self.t1
-        elif self.score[0] < self.score[1]:
-            return self.t2
-        else:
+    def winner(self) -> Optional[str]:
+        """Name des Gewinners, falls das Match bereits beendet ist."""
+        s = self.score
+        if s is None:
             return None
+        if s[0] > s[1]:
+            return self.t1
+        if s[1] > s[0]:
+            return self.t2
+        return None
 
     @property
-    def loser(self) -> str | None:
-        if self.score[0] < self.score[1]:
-            return self.t1
-        elif self.score[0] > self.score[1]:
-            return self.t2
-        else:
+    def loser(self) -> Optional[str]:
+        """Name des Verlierers, falls das Match bereits beendet ist."""
+        s = self.score
+        if s is None:
             return None
+        if s[0] < s[1]:
+            return self.t1
+        if s[1] < s[0]:
+            return self.t2
+        return None
+
+    @staticmethod
+    def _validate_set(p1: int, p2: int) -> None:
+        """Prüft, ob ein einzelner Satz plausibel ist. Für Tennis (Best‑of‑3) gelten z.B.:
+        - 0≤Punkte≤7
+        - kein Unentschieden
+        - ein Spieler muss mindestens 6 Punkte haben und mit mind. 2 Punkten Vorsprung gewinnen,
+          außer bei 7‑6 (Tie‑Break).
+        """
+        if not (0 <= p1 <= 7 and 0 <= p2 <= 7):
+            raise ValueError("Punkte müssen zwischen 0 und 7 liegen.")
+        if p1 == p2:
+            raise ValueError("Ein Satz darf nicht unentschieden enden.")
+        # Minimal‑Gewinn‑Regel
+        if max(p1, p2) < 6:
+            raise ValueError("Ein Satz muss mit mindestens 6 Punkten gewonnen werden.")
+        if abs(p1 - p2) < 2 and max(p1, p2) != 7:
+            raise ValueError("Gewinner muss mit mindestens 2 Punkten Unterschied gewinnen "
+                             "(außer 7‑6).")
+
+    @classmethod
+    def create(cls, id: int, court: int, t1: str, t2: str, ref: Optional[str] = None) -> Match:
+        """Factory‑Methode – gibt automatisch die nächste globale Match‑ID zurück."""
+        return cls(id=id, court=court, t1=t1, t2=t2, ref=ref)
+
+    def add_set(self, p1: int, p2: int) -> None:
+        """Fügt einen neuen Satz zum Match hinzu und aktualisiert den Status."""
+        self._validate_set(p1, p2)
+        self.sets.append((p1, p2))
+
+        # Status‑Logik
+        if self.winner is not None:
+            self.status = MatchStatus.FINISHED
+
+    def add_result(self, result: List[Tuple[int:int]]) -> None:
+        """Fügt einen neuen Satz zum Match hinzu und aktualisiert den Status."""
+        for set_score in result:
+            self._validate_set(set_score[0], set_score[0])
+            self.sets.append((set_score[0], set_score[0]))
+
+        self.status = MatchStatus.FINISHED
+
+    def to_dict(self) -> dict:
+        """Serialisiert das Match für JSON‑Export o. Ä."""
+        return {
+            "id": str(self.id),
+            "court": self.court,
+            "t1": self.t1,
+            "t2": self.t2,
+            "referee": self.ref if self.ref else None,
+            "sets": self.sets,
+            "status": self.status.name,
+        }
 
 
 @dataclass
@@ -118,110 +181,6 @@ class Tournament:
     def get_stage(self, stage_id: str) -> Optional[Stage]:
         return self.stages.get(stage_id)
 
-    def start_tournament(self):
-        if not self.stages:
-            raise ValueError("No stages defined!")
-        self.status = "running"
-        # Starte mit erster Runde
-        first_stage_id = next(iter(self.stages))
-        self.current_stage_id = first_stage_id
-
-    def advance_to_next_stage(self, stage_id: str) -> bool:
-        stage = self.get_stage(stage_id)
-        if not stage or stage.is_completed:
-            return False
-
-        # Prüfe, ob alle Matches abgeschlossen sind
-        if not stage.is_ready_for_next():
-            return False
-
-        # Entscheide, welche Runden als nächstes kommen
-        # → Hier wird die Logik für überkreuzspiele, K.O. etc. implementiert
-        next_stages = self._determine_next_stages(stage)
-        for next_stage_id in next_stages:
-            self.stages[next_stage_id].is_completed = False
-            self.stages[next_stage_id].results = {}
-
-        self.current_stage_id = next_stages[0] if next_stages else None
-        return True
-
-    def _determine_next_stages(self, current_stage: Stage) -> List[str]:
-        """
-        Dynamische Entscheidung: Was kommt nach dieser Runde?
-        Beispiel: Nach Gruppenphase → überkreuzspiele oder K.O.
-        """
-        if current_stage.type == StageType.GROUP:
-            # Nach Gruppenphase: überkreuzspiele oder K.O.?
-            # Beispiel: 1. und 2. aus jeder Gruppe → Viertelfinale
-            return self._create_knockout_from_groups(current_stage)
-
-        elif current_stage.type == StageType.KNOCKOUT:
-            # Nach Viertelfinale → Halbfinale → Finale
-            if len(current_stage.teams) == 8:
-                return ["semifinal_1", "semifinal_2"]
-            elif len(current_stage.teams) == 4:
-                return ["final"]
-            else:
-                return []
-
-        elif current_stage.type == StageType.CROSSOVER:
-            # Überkreuzspiele → K.O.?
-            return self._create_knockout_from_crossover(current_stage)
-
-        return []
-
-    def _create_knockout_from_groups(self, group_stage: Stage) -> List[str]:
-        # Beispiel: 4 Gruppen, 2 Teams pro Gruppe → 8 Teams → Viertelfinale
-        # Hier: Logik, wie Teams aus Gruppen ausgewählt werden
-        # z. B. 1. und 2. aus jeder Gruppe
-        teams = []
-        for group_id, group in self.stages.items():
-            if group.type == StageType.GROUP:
-                # Annahme: Gruppen haben Platzierungen in results
-                # z. B. group.results["rankings"] = ["team_a", "team_b", ...]
-                if "rankings" in group.results:
-                    teams.extend(group.results["rankings"][:2])  # Top 2
-
-        # Erstelle Viertelfinale
-        knockout_stages = []
-        for i in range(0, len(teams), 2):
-            if i + 1 < len(teams):
-                stage_id = f"quarterfinal_{i//2 + 1}"
-                stage = Stage(
-                    id=stage_id,
-                    type=StageType.KNOCKOUT,
-                    modus=MatchMode.BEST_OF_3,
-                    settings={"sets": "3", "points": 25, "tiebreak": 15},
-                    teams=[teams[i], teams[i+1]],
-                    next_stages=[f"semifinal_{i//4 + 1}"]
-                )
-                self.add_stage(stage)
-                knockout_stages.append(stage_id)
-
-        return knockout_stages
-
-    def _create_knockout_from_crossover(self, crossover_stage: Stage) -> List[str]:
-        # Beispiel: überkreuzspiele → K.O. mit 4 Teams → Halbfinale
-        # Hier: Logik, wie Teams aus überkreuzspiele kommen
-        # z. B. Gewinner der überkreuzspiele → Halbfinale
-        teams = [match.winner for match in crossover_stage.matches if match.winner]
-        # Erstelle Halbfinale
-        semifinal_stages = []
-        for i in range(0, len(teams), 2):
-            if i + 1 < len(teams):
-                stage_id = f"semifinal_{i//2 + 1}"
-                stage = Stage(
-                    id=stage_id,
-                    type=StageType.KNOCKOUT,
-                    modus=MatchMode.BEST_OF_3,
-                    settings={"sets": "3", "points": 25, "tiebreak": 15},
-                    teams=[teams[i], teams[i+1]],
-                    next_stages=["final"]
-                )
-                self.add_stage(stage)
-                semifinal_stages.append(stage_id)
-        return semifinal_stages
-
 
 @dataclass
 class Stage:
@@ -229,7 +188,7 @@ class Stage:
     type: StageType
     teams: List[str]
     groups: List[Group] | None = None
-    matches: List[Match] | None = None
+    match_list: List[Match] | None = None
     prev_stage: StageID = None
     next_stages: List[StageID] = field(default_factory=list)  # IDs der nächsten Runden
     is_completed: bool = False
@@ -240,14 +199,14 @@ class Stage:
             self.teams.append(team_name)
 
     def add_match(self, match: Match):
-        self.matches.append(match)
+        self.match_list.append(match)
 
     def is_ready_for_next(self) -> bool:
         # Prüft, ob alle Matches abgeschlossen sind
-        return all(match.time is not None for match in self.matches) and len(self.matches) > 0
+        return all(match.time is not None for match in self.match_list) and len(self.match_list) > 0
 
     def __repr__(self):
-        return f"Stage(id={self.id}, type={self.type}, teams={self.teams}, matches={self.matches}, groups={self.groups})"
+        return f"Stage(id={self.id}, type={self.type}, teams={self.teams}, match_list={self.match_list}, groups={self.groups})"
 
 
 @dataclass
@@ -256,7 +215,8 @@ class Group:
     teams: List[str]
     teams_target: int
     assigned_courts: List[int] = field(default_factory=list)
-    settings: MatchSettings | None = None
+    settings: Optional[MatchSettings] = None
+    match_list: List[Match] | None = None
 
     @property
     def num_teams(self) -> int:
@@ -269,16 +229,46 @@ class Group:
         else:
             return False
 
+    @property
+    def num_courts(self) -> int:
+        return len(self.assigned_courts or [])
+
+    @property
+    def schedule_schema(self) -> List[dict]:
+        """Gibt das passende Schema Spielplan zurück, basierend auf Gruppengröße und verfügbaren Feldern."""
+        key = (self.num_teams, self.num_courts)
+
+        try:
+            return SCHEMA_MAP[key]
+        except KeyError as exc:
+            raise ValueError(
+                f"Kein vordefiniertes Schema für {self.num_teams} Teams "
+                f"und {self.num_courts} Feld(er). "
+                f"Verfügbare Kombinationen: {list(SCHEMA_MAP.keys())}"
+            ) from exc
+
     def __init__(self, name: str, teams: List[str], teams_target: int):
         self.name = name
         self.teams = teams or []
         self.teams_target = teams_target
 
-    def add_head(self, team_name: str):
-        self.teams.append(team_name)
+    def add_head(self, team_name: str) -> None:
+        """
+        Fügt ein neues Team an die erste Position der Gruppe ein.
+        """
+        if team_name in self.teams:
+            self.teams.remove(team_name)
+        if self.complete:
+            raise ValueError(
+                f"Gruppe '{self.name}' ist bereits voll ({self.teams_target} Teams)."
+            )
+        self.teams.insert(0, team_name)
 
-    def add_member(self, team_name: str):
-        self.teams.append(team_name)
+    def add_team(self, team_name: str):
+        if self.complete:
+            raise ValueError(f"Gruppe '{self.name}' ist bereits voll ({self.teams_target} Teams).")
+        if team_name not in self.teams:
+            self.teams.append(team_name)
 
     def swap_teams(self, index1: int, index2: int):
         """
@@ -322,6 +312,44 @@ class Group:
         if not court_numbers:
             raise ValueError("Mindestens ein Feld muss zugewiesen werden.")
         self.assigned_courts = sorted(court_numbers)
+
+    def build_matches_from_schema(self) -> None:
+        """
+        Nutzt self.schedule_schema und füllt self.match_list mit echten
+        Match‑Instanzen.
+
+        * Die Feld‑Belegung rotiert über self.assigned_courts.
+        * Team‑IDs aus dem Schema (1‑basiert) werden in die tatsächlichen
+          Team‑Namen (Strings) übersetzt.
+        """
+        if self.match_list:
+            self.match_list.clear()
+
+        # Mapping: 1‑basierte ID → Team‑Name (wie im Schema verwendet)
+        id_to_name = {i + 1: name for i, name in enumerate(self.teams)}
+
+        # Rotations‑Index für die Feld‑Belegung
+        match_index = 1
+
+        # Durch das Schema iterieren und Match‑Objekte bauen
+        for round_dict in self.schedule_schema:
+            for m in round_dict["Matches"]:
+                # Team‑Namen holen
+                t1_name = id_to_name[m["Team1"]]
+                t2_name = id_to_name[m["Team2"]]
+                ref_name = (
+                    id_to_name[m["Ref"]] if m["Ref"] is not None else None
+                )
+
+                court_id = self.assigned_courts[
+                    match_index % len(self.assigned_courts)
+                ]
+
+                new_match = Match.create(id=match_index, court=court_id, t1=t1_name, t2=t2_name, ref=ref_name)
+                self.match_list.append(new_match)
+
+                match_index += 1
+
 
 
 @dataclass
