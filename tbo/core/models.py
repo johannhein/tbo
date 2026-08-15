@@ -8,7 +8,9 @@ from services.schedule import SCHEMA_MAP
 MatchID = int
 StageID = str
 
-
+# -------------------------------------------------
+# Enums
+# -------------------------------------------------
 class MatchStatus(Enum):
     """Zustand eines Matches im Turnier."""
     PENDING   = auto()   # noch nicht gestartet / keine Sätze
@@ -16,47 +18,36 @@ class MatchStatus(Enum):
     CANCELLED = auto()   # abgesagt (z. B. wegen Verletzung)
 
 
-
 class StageType(Enum):
     GROUP = "group"
     KNOCKOUT = "knockout"
-    CROSSOVER = "crossover"  # überkreuzspiele
+    CROSSOVER = "crossover"
     FINAL = "final"
-    PLAYOFF = "playoff"     # z. B. 3. Platz, 5. Platz etc.
-
+    PLAYOFF = "playoff"
 
 class MatchMode(Enum):
     BEST_OF_3 = "best_of_3"
     BEST_OF_5 = "best_of_5"
-    SETS_3 = "3 Sätze"  # 3 Sätze, kein Tiebreak
-    SETS_2 = "2 Sätze"  # 2 Sätze, kein Tiebreak
-    SETS_1 = "1 Satz"   # 1 Satz, kein Tiebreak
+    SETS_3 = "3 Sätze"
+    SETS_2 = "2 Sätze"
+    SETS_1 = "1 Satz"
 
 # -------------------------------------------------
-# Mapping von UI‑Text → MatchMode‑Enum
+# Mapping
 # -------------------------------------------------
-SET_MODE_MAP: dict[str, MatchMode] = {
-    "1 Satz":   MatchMode.SETS_1,
-    "2 Sätze":  MatchMode.SETS_2,
-    "3 Sätze":  MatchMode.SETS_3,
-    "Best of 3": MatchMode.BEST_OF_3,
-    "Best of 5": MatchMode.BEST_OF_5,
-}
-
-
 MATCH_MODE_TO_UI = {
     MatchMode.SETS_1: "1 Satz",
     MatchMode.SETS_2: "2 Sätze",
     MatchMode.SETS_3: "3 Sätze",
     MatchMode.BEST_OF_3: "Best of 3",
     MatchMode.BEST_OF_5: "Best of 5",
-    # falls du noch weitere Modi hast, ergänze sie hier
 }
 
-# Und das Gegenstück (UI‑Text → Enum) – du hast das bereits als SET_MODE_MAP
 UI_TO_MATCH_MODE = {v: k for k, v in MATCH_MODE_TO_UI.items()}
 
-
+# -------------------------------------------------
+# Dataclasses
+# -------------------------------------------------
 @dataclass
 class Match:
     id: MatchID
@@ -131,9 +122,9 @@ class Match:
                              "(außer 7‑6).")
 
     @classmethod
-    def create(cls, id: int, court: int, t1: str, t2: str, ref: Optional[str] = None) -> Match:
+    def create(cls, match_id: int, court: int, t1: str, t2: str, ref: Optional[str] = None) -> Match:
         """Factory‑Methode – gibt automatisch die nächste globale Match‑ID zurück."""
-        return cls(id=id, court=court, t1=t1, t2=t2, ref=ref)
+        return cls(id=match_id, court=court, t1=t1, t2=t2, ref=ref)
 
     def add_set(self, p1: int, p2: int) -> None:
         """Fügt einen neuen Satz zum Match hinzu und aktualisiert den Status."""
@@ -171,15 +162,38 @@ class Tournament:
     type: str  # z. B. "Damen", "Herren" "Quattro"
     courts: List[int]
     teams: List[str]
-    stages: Dict[str, Stage] = field(default_factory=dict)
+    stages: Dict[StageID, Stage] = field(default_factory=dict)
     current_stage_id: str | None = None
     status: str = "planning"  # planning, running, finished
 
-    def add_stage(self, stage: Stage):
+    def add_stage(self, stage: Stage) -> None:
+        """Fügt eine neue Stage hinzu – wirft bei doppelter ID."""
+        if stage.id in self.stages:
+            raise ValueError(f"Stage‑ID {stage.id!r} existiert bereits.")
         self.stages[stage.id] = stage
 
-    def get_stage(self, stage_id: str) -> Optional[Stage]:
-        return self.stages.get(stage_id)
+    def get_stage(self, stage_id: StageID) -> Stage:
+        """Liefert die Stage oder wirft KeyError."""
+        return self.stages[stage_id]
+
+    def remove_stage(self, stage_id: StageID) -> None:
+        """Entfernt eine Stage (falls vorhanden)."""
+        self.stages.pop(stage_id, None)
+
+    def all_stages(self) -> List[Stage]:
+        """Gibt alle Stages in Einfüge‑Reihenfolge zurück."""
+        return list(self.stages.values())
+
+    def ids_stages(self) -> List[StageID]:
+        """Liste aller IDs (ebenfalls in Einfüge‑Reihenfolge)."""
+        return list(self.stages.keys())
+
+    def schedule_stage(self, stage_id: StageID):
+        stage = self.get_stage(stage_id)
+
+        match_id = 1
+        for group in stage.groups:
+            match_id = group.build_matches_from_schema(match_id)
 
 
 @dataclass
@@ -313,7 +327,7 @@ class Group:
             raise ValueError("Mindestens ein Feld muss zugewiesen werden.")
         self.assigned_courts = sorted(court_numbers)
 
-    def build_matches_from_schema(self) -> None:
+    def build_matches_from_schema(self, match_index: int = 1) -> int:
         """
         Nutzt self.schedule_schema und füllt self.match_list mit echten
         Match‑Instanzen.
@@ -322,14 +336,10 @@ class Group:
         * Team‑IDs aus dem Schema (1‑basiert) werden in die tatsächlichen
           Team‑Namen (Strings) übersetzt.
         """
-        if self.match_list:
-            self.match_list.clear()
+        self.match_list = []
 
         # Mapping: 1‑basierte ID → Team‑Name (wie im Schema verwendet)
         id_to_name = {i + 1: name for i, name in enumerate(self.teams)}
-
-        # Rotations‑Index für die Feld‑Belegung
-        match_index = 1
 
         # Durch das Schema iterieren und Match‑Objekte bauen
         for round_dict in self.schedule_schema:
@@ -345,11 +355,12 @@ class Group:
                     match_index % len(self.assigned_courts)
                 ]
 
-                new_match = Match.create(id=match_index, court=court_id, t1=t1_name, t2=t2_name, ref=ref_name)
+                new_match = Match.create(match_id=match_index, court=court_id, t1=t1_name, t2=t2_name, ref=ref_name)
                 self.match_list.append(new_match)
 
                 match_index += 1
 
+        return match_index
 
 
 @dataclass
