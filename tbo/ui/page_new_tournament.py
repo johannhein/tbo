@@ -8,9 +8,10 @@ import pandas as pd
 
 from config.constants import IMPORT_DIR
 from services import tournament_manager
+from services.export_schedule import export_stage
 from services.persistence import list_csv_files
 from core.models import Team, Group, Tournament, StageType, StageID, MatchSettings, MATCH_MODE_TO_UI, MatchMode, \
-    UI_TO_MATCH_MODE, SET_MODE_MAP, Stage
+    UI_TO_MATCH_MODE, Stage
 from ui.utils import load_csv, get_tournament_types, get_incomplete_groups
 
 
@@ -161,7 +162,7 @@ def create_groups(team_names: List[str], selected_names: List[str], num_groups: 
     # Rest-Teams verteilen (nach Runden-System)
     for i, name in enumerate(remaining_names):
         grp_name = group_names[i % num_groups]
-        groups[grp_name].add_member(name)
+        groups[grp_name].add_team(name)
 
     # Berechne erwartete Gruppengröße
     total_teams = len(team_names)
@@ -379,7 +380,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
                 modus_raw = val["modus"]
                 # Der Modus kann bereits ein Enum sein oder ein UI‑String
                 if isinstance(modus_raw, str):
-                    modus = SET_MODE_MAP[modus_raw]  # String → Enum
+                    modus = UI_TO_MATCH_MODE[modus_raw]  # String → Enum
                 else:
                     modus = modus_raw  # Enum → Enum
                 st.session_state["game_modes"][key] = MatchSettings(
@@ -656,14 +657,18 @@ def tab_new_tournament() -> None:
 
         name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
         test = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
+        group_list: List[Group] = list(st.session_state["groups"].values())
+        stage = Stage(id="Vorrunde Gruppenphase", type=StageType.GROUP, teams=st.session_state["teams"],
+                      groups=group_list)
+        test.add_stage(stage)
+        test.schedule_stage(stage.id)
+        export_stage(test, stage.id)
 
         # print(st.session_state["groups"])
 
-        group_list: List[Group] = list(st.session_state["groups"].values())
+        print(group_list[0])
 
-        stage = Stage(id="Vorrunde Gruppenphase", type=StageType.GROUP, teams=st.session_state["teams"], groups=group_list)
 
-        print(stage)
 
 
     # -------------------------------------------------
