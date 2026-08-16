@@ -3,21 +3,9 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from config.constants import EXPORT_DIR, TEMPLATE_DIR, TOURNAMENT_NAME
-from core.models import Group, Match, Tournament, StageID, MatchMode, MATCH_MODE_TO_UI, MATCH_MODE_TO_SETS
+from core.models import Group, Match, Tournament, StageID, MatchMode
+from services.mapping import MATCH_MODE_TO_SETS, format_modus, ui_modus
 from services.path import ensure_dir
-
-
-def ui_modus(modus: MatchMode) -> str:
-    """Übersetzt den MatchMode in String für die UI."""
-    return MATCH_MODE_TO_UI.get(modus, str(modus))
-
-
-def format_modus(modus_ui: str, pts: int, tiebreak: int | None = None) -> str:
-    """Formatiert den Text für da Protokoll."""
-    parts = [f"{modus_ui} bis {pts}"]
-    if tiebreak is not None:
-        parts.append(f"Tiebreak bis {tiebreak}")
-    return " ".join(parts)
 
 
 def get_match_table_data(matches: list[Match], mode: MatchMode) -> dict:
@@ -48,22 +36,14 @@ def get_match_table_data(matches: list[Match], mode: MatchMode) -> dict:
     return {"max_set_count": max_set_count, "rows": rows}
 
 
-def render_group_schedule_html(
-        group: Group,
-        stage_id: StageID,
-        tournament: Tournament,
-        *,
-        template_dir: str = TEMPLATE_DIR,
-        header: str = TOURNAMENT_NAME,
-) -> Path:
-    stage_name = str(stage_id)
+def render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tournament, *,
+                               template_dir: str = TEMPLATE_DIR, header: str = TOURNAMENT_NAME,) -> Path:
+    """Rendert eine HTML-Datei für das Spielprotokoll einer Gruppe."""
+    t_type = tournament.type or ""
+    stage_name = f"{stage_id} {t_type}"
     modus_ui = ui_modus(group.settings.modus)
 
-    modus = format_modus(
-        modus_ui=modus_ui,
-        pts=group.settings.points,
-        tiebreak=group.settings.tiebreak
-    )
+    modus = format_modus(modus_ui=modus_ui, pts=group.settings.points, tiebreak=group.settings.tiebreak)
 
     table_data = get_match_table_data(group.match_list, group.settings.modus)
 
