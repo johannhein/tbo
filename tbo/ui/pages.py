@@ -130,77 +130,77 @@ def setup_tournament():
 # ----------------------------------------------------------------------
 # 2️⃣  Tab‑Funktionen (Vorrunde, Felder, Rankings, …)
 # ----------------------------------------------------------------------
-def tab_group_stage():
-    """Vorrunden‑Tab – Spielplan + Eingabefelder."""
-    data = st.session_state.data
-
-    # ---- Wenn noch kein Turnier existiert, nichts rendern ----
-    if not data.get("tournament_config"):
-        st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
-        return
-
-    schedule = data["tournament_config"]["schedule"]
-    groups   = data["tournament_config"]["groups"]
-
-    # Fortschritts‑Bar
-    played = sum(1 for m in data["group_matches"].values() if m.get("played"))
-    st.progress(
-        played / max(1, len(schedule)),
-        text=f"Vorrunde: {played}/{len(schedule)} Spiele"
-    )
-
-    # Anzeige pro Gruppe
-    cols = st.columns(len(groups))
-    for i, grp in enumerate(groups):
-        with cols[i]:
-            st.subheader(f"Gruppe {grp}")
-            for m in schedule:
-                if m["group"] != grp:
-                    continue
-                m_id = m["id"]
-                res  = data["group_matches"].get(m_id, {})
-                title = helpers.get_expander_title(
-                    m["time"], m["court"],
-                    data["teams"][grp][m["t1"]],
-                    data["teams"][grp][m["t2"]],
-                    res,
-                )
-                with st.expander(title, expanded=not res.get("played")):
-                    c1, c2, c3 = st.columns([2, 1, 1])
-                    c1.write(
-                        f"**{data['teams'][grp][m['t1']]}** vs "
-                        f"**{data['teams'][grp][m['t2']]}**"
-                    )
-                    # Berechtigung prüfen
-                    disabled = not auth.can_edit_match(m["t1"], m["t2"])
-
-                    # Session‑State‑Initialisierung (falls noch nicht vorhanden)
-                    if f"{m_id}_1" not in st.session_state:
-                        st.session_state[f"{m_id}_1"] = res.get("score1", 0)
-                    if f"{m_id}_2" not in st.session_state:
-                        st.session_state[f"{m_id}_2"] = res.get("score2", 0)
-
-                    # ---- Number‑Inputs mit nicht‑leeren Labels ----
-                    c2.number_input(
-                        label=f"Punkte {data['teams'][grp][m['t1']]}",
-                        step=1, min_value=0,
-                        key=f"{m_id}_1",
-                        label_visibility="collapsed",   # Label verstecken, aber nicht leer
-                        disabled=disabled,
-                    )
-                    c3.number_input(
-                        label=f"Punkte {data['teams'][grp][m['t2']]}",
-                        step=1, min_value=0,
-                        key=f"{m_id}_2",
-                        label_visibility="collapsed",
-                        disabled=disabled,
-                    )
-                    st.button(
-                        "Speichern",
-                        key=f"btn_{m_id}",
-                        on_click=_save_group_score,
-                        args=(m_id,),
-                    )
+# def tab_group_stage():
+#     """Vorrunden‑Tab – Spielplan + Eingabefelder."""
+#     data = st.session_state.data
+#
+#     # ---- Wenn noch kein Turnier existiert, nichts rendern ----
+#     if not data.get("tournament_config"):
+#         st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
+#         return
+#
+#     schedule = data["tournament_config"]["schedule"]
+#     groups   = data["tournament_config"]["groups"]
+#
+#     # Fortschritts‑Bar
+#     played = sum(1 for m in data["group_matches"].values() if m.get("played"))
+#     st.progress(
+#         played / max(1, len(schedule)),
+#         text=f"Vorrunde: {played}/{len(schedule)} Spiele"
+#     )
+#
+#     # Anzeige pro Gruppe
+#     cols = st.columns(len(groups))
+#     for i, grp in enumerate(groups):
+#         with cols[i]:
+#             st.subheader(f"Gruppe {grp}")
+#             for m in schedule:
+#                 if m["group"] != grp:
+#                     continue
+#                 m_id = m["id"]
+#                 res  = data["group_matches"].get(m_id, {})
+#                 title = helpers.get_expander_title(
+#                     m["time"], m["court"],
+#                     data["teams"][grp][m["t1"]],
+#                     data["teams"][grp][m["t2"]],
+#                     res,
+#                 )
+#                 with st.expander(title, expanded=not res.get("played")):
+#                     c1, c2, c3 = st.columns([2, 1, 1])
+#                     c1.write(
+#                         f"**{data['teams'][grp][m['t1']]}** vs "
+#                         f"**{data['teams'][grp][m['t2']]}**"
+#                     )
+#                     # Berechtigung prüfen
+#                     disabled = not auth.can_edit_match(m["t1"], m["t2"])
+#
+#                     # Session‑State‑Initialisierung (falls noch nicht vorhanden)
+#                     if f"{m_id}_1" not in st.session_state:
+#                         st.session_state[f"{m_id}_1"] = res.get("score1", 0)
+#                     if f"{m_id}_2" not in st.session_state:
+#                         st.session_state[f"{m_id}_2"] = res.get("score2", 0)
+#
+#                     # ---- Number‑Inputs mit nicht‑leeren Labels ----
+#                     c2.number_input(
+#                         label=f"Punkte {data['teams'][grp][m['t1']]}",
+#                         step=1, min_value=0,
+#                         key=f"{m_id}_1",
+#                         label_visibility="collapsed",   # Label verstecken, aber nicht leer
+#                         disabled=disabled,
+#                     )
+#                     c3.number_input(
+#                         label=f"Punkte {data['teams'][grp][m['t2']]}",
+#                         step=1, min_value=0,
+#                         key=f"{m_id}_2",
+#                         label_visibility="collapsed",
+#                         disabled=disabled,
+#                     )
+#                     st.button(
+#                         "Speichern",
+#                         key=f"btn_{m_id}",
+#                         on_click=_save_group_score,
+#                         args=(m_id,),
+#                     )
 
 
 def tab_courts():
