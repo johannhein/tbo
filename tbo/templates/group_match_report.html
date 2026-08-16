@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Spielprotokoll – Gruppe {{ group.name }}</title>
+    <style>
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            margin: 2cm;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 0.5cm;
+        }
+        h2 {
+            text-align: left; /* ✅ Linksbündig */
+            margin-top: 0;
+            margin-bottom: 0.5cm;
+            font-weight: normal;
+            font-size: 1.2em;
+        }
+        h3 {
+            text-align: left; /* ✅ Linksbündig */
+            margin-top: 0;
+            margin-bottom: 0.5cm;
+            font-weight: normal;
+            font-size: 1em;
+        }
+
+        /* ✅ Wichtig: Tabelle hält ihre festen Spaltenbreiten */
+        table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: auto;
+        }
+
+        th, td {
+            border: 1px solid #777;
+            padding: 0.3em 0.5em;
+            text-align: center;
+            vertical-align: middle;
+        }
+        th {
+            background: #f0f0f0;
+        }
+
+        /* Feste Breite für Spalten */
+        .col-nr {
+            width: 2em;
+        }
+        .col-court {
+            width: 4em;
+        }
+        .col-team {
+            width: 16em;
+        }
+        .col-ref {
+            width: 16em;
+        }
+        .set-header {
+            width: 8em;
+        }
+        .input-cell {
+            width: 4em;
+        }
+
+        /* Eingabefelder füllen ihre Zelle */
+        input {
+            width: 100%;
+            text-align: center;
+            border: none;
+            background: transparent;
+        }
+
+        @media print {
+            thead {
+                display: table-header-group;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>{{ header }}</h1>
+<h2>{{ stage_name }}</h2> <!-- ✅ Linksbündig -->
+<h3>Spielmodus: {{ modus }}</h3> <!-- ✅ Linksbündig -->
+
+<table>
+    <thead>
+        <tr>
+            <th class="col-nr">Nr.</th>
+            <th class="col-court">Feld</th>
+            <th class="col-team">Team 1</th>
+            <th class="col-team">Team 2</th>
+            <th class="col-ref">Schiedsrichter</th>
+
+            <!-- Dynamische Satz-Spalten – jede über 2 Unter-Spalten (colspan=2) -->
+            {% for set_name in rows[0].set_headers %}
+                <th class="set-header" colspan="2">{{ set_name }}</th>
+            {% endfor %}
+
+            <!-- ✅ Neue Spalte: „Sätze“ mit 2 Unter-Spalten – leer -->
+            {% if group.settings.modus == MatchMode.SETS_1 %}
+                <th class="set-header" colspan="2">Satz</th>
+            {% else %}
+                <th class="set-header" colspan="2">Sätze</th>
+            {% endif %}
+        </tr>
+    </thead>
+
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td class="col-nr">{{ r.nr }}</td>
+            <td class="col-court">{{ r.court }}</td>
+            <td class="col-team">{{ r.t1 }}</td>
+            <td class="col-team">{{ r.t2 }}</td>
+            <td class="col-ref">{{ r.ref }}</td>
+
+            <!-- Für jedes mögliche Satz-Feld (bis max_set_count) -->
+            {% for idx in range(max_set_count) %}
+                {% set set_no = idx + 1 %}
+                {% if set_no <= r.set_headers|length %}
+                    {% set score = r.scores.get(set_no, (None, None)) %}
+                    <td class="input-cell"><input type="text" name="s{{ r.nr }}_{{ set_no }}_t1"
+                               value="{{ score[0] if score[0] is not none else '' }}"></td>
+                    <td class="input-cell"><input type="text" name="s{{ r.nr }}_{{ set_no }}_t2"
+                               value="{{ score[1] if score[1] is not none else '' }}"></td>
+                {% else %}
+                    <td class="input-cell"></td>
+                    <td class="input-cell"></td>
+                {% endif %}
+            {% endfor %}
+
+            <!-- ✅ Neue Spalte: „Sätze“ – T1 und T2, aber leer -->
+            {% if group.settings.modus == MatchMode.SETS_1 %}
+                <td class="input-cell"><input type="text" name="s{{ r.nr }}_sets_t1" value=""></td>
+                <td class="input-cell"><input type="text" name="s{{ r.nr }}_sets_t2" value=""></td>
+            {% else %}
+                <td class="input-cell"><input type="text" name="s{{ r.nr }}_sets_t1" value=""></td>
+                <td class="input-cell"><input type="text" name="s{{ r.nr }}_sets_t2" value=""></td>
+            {% endif %}
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>

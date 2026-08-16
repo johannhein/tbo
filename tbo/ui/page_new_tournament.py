@@ -10,8 +10,7 @@ from config.constants import IMPORT_DIR
 from services import tournament_manager
 from services.export_schedule import export_stage
 from services.persistence import list_csv_files
-from core.models import Team, Group, Tournament, StageType, StageID, MatchSettings, MATCH_MODE_TO_UI, MatchMode, \
-    UI_TO_MATCH_MODE, Stage
+from core.models import Team, Group, Tournament, StageType, MatchSettings, MATCH_MODE_TO_UI, MatchMode, UI_TO_MATCH_MODE, Stage
 from ui.utils import load_csv, get_tournament_types, get_incomplete_groups
 
 
@@ -355,12 +354,8 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
     """UI zum Einstellen der Spiel‑Modi für komplette und unvollständige Gruppen."""
     st.subheader("🗂️ Spielmodus")
 
-    # ------------------------------------------------------------------
-    # 1️⃣  Sicherstellen, dass die Session‑State‑Einträge existieren
-    # ------------------------------------------------------------------
-    # -------------------------------------------------
-    # 1️⃣  Initialisierung (einmal beim ersten Aufruf)
-    # -------------------------------------------------
+    # Sicherstellen, dass die Session‑State‑Einträge existieren
+    # Initialisierung (einmal beim ersten Aufruf)
     if "game_modes" not in st.session_state:
         # Wir legen sofort MatchSettings‑Objekte an – kein dict!
         st.session_state["game_modes"] = {
@@ -368,10 +363,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
             "incomplete": MatchSettings(modus=MatchMode.SETS_1, points=15, tiebreak=None),
         }
     else:
-        # -------------------------------------------------
-        # 2️⃣  Falls bereits ein Eintrag existiert, prüfen wir,
-        #     ob er ein dict ist (z. B. nach einem Reload)
-        # -------------------------------------------------
+        # Falls bereits ein Eintrag existiert, prüfen wir, ob er ein dict ist (z. B. nach einem Reload)
         for key in ("complete", "incomplete"):
             val = st.session_state["game_modes"].get(key)
             if isinstance(val, dict):
@@ -389,9 +381,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
                     tiebreak=int(val["tiebreak"]) if val.get("tiebreak") else None,
                 )
 
-    # ------------------------------------------------------------------
-    # 2️⃣  Aktuelle Werte aus dem Session‑State holen und in UI‑Form bringen
-    # ------------------------------------------------------------------
+    # Aktuelle Werte aus dem Session‑State holen und in UI‑Form bringen
     complete_settings: MatchSettings   = st.session_state["game_modes"]["complete"]
     incomplete_settings: MatchSettings = st.session_state["game_modes"]["incomplete"]
 
@@ -399,9 +389,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
     complete_ui   = settings_to_ui_values(complete_settings)
     incomplete_ui = settings_to_ui_values(incomplete_settings)
 
-    # ------------------------------------------------------------------
-    # 3️⃣  Einstellungen für **vollständige** Gruppen
-    # ------------------------------------------------------------------
+    # Einstellungen für vollständige Gruppen
     st.markdown("#### Vollständige Gruppen")
 
     col1, col2, col3 = st.columns(3)
@@ -423,7 +411,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
         )
     with col3:
         # Tiebreak‑Feld nur anzeigen, wenn der Modus „2 Gewinnsätze“ ist
-        if sets_complete == "Best of 3":
+        if sets_complete == "2 Gewinnsätze" or sets_complete == "3 Gewinnsätze":
             tiebreak_complete = st.number_input(
                 "Tiebreak‑Punkte",
                 min_value=1,
@@ -442,9 +430,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
             tiebreak=tiebreak_complete,
         )
 
-    # ------------------------------------------------------------------
-    # 4️⃣  Einstellungen für **unvollständige** Gruppen (falls vorhanden)
-    # ------------------------------------------------------------------
+    # Einstellungen für unvollständige Gruppen (falls vorhanden)
     if incomplete_groups:
         group_names_str = ", ".join(incomplete_groups)
         st.markdown(f"#### Unvollständige Gruppen ({group_names_str})")
@@ -667,8 +653,6 @@ def tab_new_tournament() -> None:
         # print(st.session_state["groups"])
 
         print(group_list[0])
-
-
 
 
     # -------------------------------------------------
