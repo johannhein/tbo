@@ -9,8 +9,9 @@ import pandas as pd
 from config.constants import IMPORT_DIR
 from services import tournament_manager
 from services.export_schedule import export_stage
-from services.persistence import list_csv_files
-from core.models import Team, Group, Tournament, StageType, MatchSettings, MATCH_MODE_TO_UI, MatchMode, UI_TO_MATCH_MODE, Stage
+from services.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE
+from services.persistence import list_csv_files, save_test_tournament
+from core.models import Team, Group, Tournament, StageType, MatchSettings, MatchMode, Stage
 from ui.utils import load_csv, get_tournament_types, get_incomplete_groups
 
 
@@ -453,7 +454,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
                 key="points_incomplete",
             )
         with col3:
-            if sets_incomplete == "Best of 3":
+            if sets_incomplete == "2 Gewinnsätze" or sets_incomplete == "3 Gewinnsätze":
                 tiebreak_incomplete = st.number_input(
                     "Tiebreak‑Punkte",
                     min_value=1,
@@ -481,6 +482,8 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
 def tab_new_tournament() -> None:
     st.header("🆕 Neues Turnier erstellen")
 
+    if "tournament_created" not in st.session_state:
+        st.session_state["tournament_created"] = False
     st.session_state.setdefault("assign_group_refs", True)  # ← Standard‑Wert
     st.session_state.setdefault("game_modes", {
         "complete": {"modus": "1 Satz", "points": 15, "tiebreak": None},
@@ -642,17 +645,23 @@ def tab_new_tournament() -> None:
             st.success(f"✅ Felder wurden zugewiesen: {st.session_state['court_assignments']}")
 
         name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
-        test = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
+        tournament = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
         group_list: List[Group] = list(st.session_state["groups"].values())
         stage = Stage(id="Vorrunde Gruppenphase", type=StageType.GROUP, teams=st.session_state["teams"],
                       groups=group_list)
-        test.add_stage(stage)
-        test.schedule_stage(stage.id)
-        export_stage(test, stage.id)
+        print(stage.teams)
+        print(stage.groups)
+        tournament.add_stage(stage)
+        tournament.schedule_stage(stage.id)
+        export_stage(tournament, stage.id)
+
+        save_test_tournament(tournament)
+
+        st.session_state["tournament_created"] = True
 
         # print(st.session_state["groups"])
 
-        print(group_list[0])
+        # print(group_list[0])
 
 
     # -------------------------------------------------
