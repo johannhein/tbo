@@ -1,9 +1,11 @@
 import json
+import pickle
 import random, string
 from pathlib import Path
 from typing import Dict, List
 import pandas as pd
 from charset_normalizer import from_path
+import streamlit as st
 
 from config.constants import DATA_FILE, GROUP_MATCHES, DATA_DIR
 from core.models import Tournament
@@ -172,3 +174,25 @@ def save_tournament(tournament: Tournament) -> None:
 
 def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str).fillna("")
+
+
+def save_test_tournament(tournament: Tournament, filename: str) -> None:
+    """Speichert das Turnier in einer Datei."""
+    name = f"{filename}.pkl"
+    path = DATA_DIR / name
+    with open(path, "wb") as f:
+        pickle.dump(tournament, f)
+    st.success("✅ Turnier wurde gespeichert.")
+
+
+def load_tournament(filename: str = "damen_2026.pkl") -> Tournament | None:
+    """Lädt das Turnier aus der Datei, falls vorhanden."""
+    path = DATA_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    except Exception as e:
+        st.warning(f"❌ Konnte Turnier nicht laden: {e}")
+        return None
