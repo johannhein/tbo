@@ -655,7 +655,9 @@ def tab_new_tournament() -> None:
         tournament.schedule_stage(stage.id)
         export_stage(tournament, stage.id)
 
-        save_test_tournament(tournament)
+        year = datetime.datetime.now().year
+        filename = f"{tournament.type.lower()}_{str(year)}"
+        save_test_tournament(tournament, filename)
 
         st.session_state["tournament_created"] = True
 
