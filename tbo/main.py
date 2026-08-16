@@ -1,13 +1,13 @@
 import streamlit as st
-from pathlib import Path
 
 from config.constants import TOURNAMENT_NAME, IMG_PATH
 from services import tournament_manager, auth
 from ui import style, pages
 from ui.page_new_tournament import tab_new_tournament
+from ui.page_pre_round import tab_group_stage
 
 # ----------------------------------------------------------------------
-# 1️⃣  Page‑Config & Header‑Bild
+# Page‑Config & Header‑Bild
 # ----------------------------------------------------------------------
 st.set_page_config(page_title=TOURNAMENT_NAME, layout="wide", page_icon="🏐")
 style.inject_css()
@@ -20,7 +20,7 @@ else:
 st.title("🏐 " + TOURNAMENT_NAME)
 
 # ----------------------------------------------------------------------
-# 2️⃣  Session‑State: Turnier‑Liste & aktuelles Turnier
+# Session‑State: Turnier‑Liste & aktuelles Turnier
 # ----------------------------------------------------------------------
 if "tournament_list" not in st.session_state:
     st.session_state.tournament_list = tournament_manager.get_all_tournaments()
@@ -29,7 +29,7 @@ if "current_tournament" not in st.session_state:
     st.session_state.current_tournament = None
 
 # ----------------------------------------------------------------------
-# 3️⃣  Sidebar – Login + Turnier‑Auswahl (ohne extra Hinweis)
+# Sidebar + Login + Turnier‑Auswahl
 # ----------------------------------------------------------------------
 with st.sidebar:
     st.header("🔐 Zugriff & Turnier‑Auswahl")
@@ -90,7 +90,7 @@ with st.sidebar:
             st.warning("Kein Turnier zum Löschen ausgewählt.")
 
 # ----------------------------------------------------------------------
-# 4️⃣  Daten‑Laden (falls noch nicht im Session‑State)
+# Daten‑Laden (falls noch nicht im Session‑State)
 # ----------------------------------------------------------------------
 if "data" not in st.session_state:
     # Noch kein Turnier gewählt → leeres Dict, damit die Tabs
@@ -98,10 +98,10 @@ if "data" not in st.session_state:
     st.session_state.data = {}
 
 # ----------------------------------------------------------------------
-# 5️⃣  Tabs – inkl. „🆕 Neues Turnier“ (immer sichtbar)
+# Tabs
 # ----------------------------------------------------------------------
 tab_names = [
-    "🆕 Neues Turnier",   # <-- jetzt Teil der regulären Tab‑Leiste
+    "⚙️ Neues Turnier",
     "📋 Vorrunde",
     "🏟️ Felder",
     "📊 Gruppen‑Ranglisten",
@@ -112,11 +112,10 @@ tab_names = [
 ]
 tabs = st.tabs(tab_names)
 
-# Reihenfolge muss zu den Tab‑Namen passen
 with tabs[0]:
-    tab_new_tournament()          # <-- dein bereits vorhandener Tab
+    tab_new_tournament()
 with tabs[1]:
-    pages.tab_group_stage()
+    tab_group_stage()
 with tabs[2]:
     pages.tab_courts()
 with tabs[3]:
