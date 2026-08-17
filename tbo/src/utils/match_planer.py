@@ -1,3 +1,5 @@
+from typing import Dict, Tuple, List
+
 group_size_3 = [
     {"Round": 1, "Matches": [{"Match": 1, "Team1": 1, "Team2": 2, "Ref": 3}]},
     {"Round": 2, "Matches": [{"Match": 2, "Team1": 1, "Team2": 3, "Ref": 2}]},
@@ -96,7 +98,7 @@ group_size_6_fields_2 = [
 ]
 
 
-SCHEMA_MAP: dict[tuple[int, int], list[dict]] = {
+SCHEMA_MAP: Dict[Tuple[int, int], List[Dict]] = {
     (3, 1): group_size_3,
     (4, 1): group_size_4,
     (5, 2): group_size_5_fields_2,

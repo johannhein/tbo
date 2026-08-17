@@ -1,8 +1,8 @@
 import streamlit as st
 
 from config.constants import TOURNAMENT_NAME, IMG_PATH
-from services import tournament_manager, auth
-from ui import style, pages
+from ui import style
+from ui import pages
 from ui.page_new_tournament import tab_new_tournament
 from ui.page_pre_round import tab_group_stage
 
@@ -19,37 +19,37 @@ else:
 
 st.title("🏐 " + TOURNAMENT_NAME)
 
-# ----------------------------------------------------------------------
-# Session‑State: Turnier‑Liste & aktuelles Turnier
-# ----------------------------------------------------------------------
-if "tournament_list" not in st.session_state:
-    st.session_state.tournament_list = tournament_manager.get_all_tournaments()
-
-if "current_tournament" not in st.session_state:
-    st.session_state.current_tournament = None
+# # ----------------------------------------------------------------------
+# # Session‑State: Turnier‑Liste & aktuelles Turnier
+# # ----------------------------------------------------------------------
+# if "tournament_list" not in st.session_state:
+#     st.session_state.tournament_list = tournament_manager.get_all_tournaments()
+#
+# if "current_tournament" not in st.session_state:
+#     st.session_state.current_tournament = None
 
 # ----------------------------------------------------------------------
 # Sidebar + Login + Turnier‑Auswahl
 # ----------------------------------------------------------------------
 with st.sidebar:
-    st.header("🔐 Zugriff & Turnier‑Auswahl")
-
-    # ---- Turnier auswählen (Dropdown) ----
-    if st.session_state.tournament_list:
-        names = [t["name"] for t in st.session_state.tournament_list]
-        selected_name = st.selectbox("Wähle ein Turnier", options=names, index=0)
-        selected_file = next(t["file"] for t in st.session_state.tournament_list
-                             if t["name"] == selected_name)
-
-        # Wenn ein anderes Turnier gewählt wurde → laden
-        if st.session_state.current_tournament != selected_file:
-            st.session_state.current_tournament = selected_file
-            st.session_state.data = tournament_manager.load_tournament_data(selected_file)
-            st.success(f"Turnier **{selected_name}** geladen.")
-    else:
-        st.info("Keine Turniere vorhanden – erstelle eines über den Tab „🆕 Neues Turnier“.")
-
-    st.markdown("---")
+    # st.header("🔐 Zugriff & Turnier‑Auswahl")
+    #
+    # # ---- Turnier auswählen (Dropdown) ----
+    # if st.session_state.tournament_list:
+    #     names = [t["name"] for t in st.session_state.tournament_list]
+    #     selected_name = st.selectbox("Wähle ein Turnier", options=names, index=0)
+    #     selected_file = next(t["file"] for t in st.session_state.tournament_list
+    #                          if t["name"] == selected_name)
+    #
+    #     # Wenn ein anderes Turnier gewählt wurde → laden
+    #     if st.session_state.current_tournament != selected_file:
+    #         st.session_state.current_tournament = selected_file
+    #         st.session_state.data = tournament_manager.load_tournament_data(selected_file)
+    #         st.success(f"Turnier **{selected_name}** geladen.")
+    # else:
+    #     st.info("Keine Turniere vorhanden – erstelle eines über den Tab „🆕 Neues Turnier“.")
+    #
+    # st.markdown("---")
 
     # ---- Login‑Logik (Admin / Team / Guest) ----
     if st.session_state.get("role") == "admin":
@@ -76,18 +76,18 @@ with st.sidebar:
             else:
                 st.error("❌ Falsches Passwort")
 
-    # ---- Optional: Turnier löschen (falls gewünscht) ----
-    st.markdown("---")
-    if st.button("Aktuelles Turnier löschen"):
-        if st.session_state.current_tournament:
-            tournament_manager.delete_tournament(st.session_state.current_tournament)
-            st.session_state.tournament_list = tournament_manager.get_all_tournaments()
-            st.session_state.current_tournament = None
-            st.session_state.data = {}
-            st.success("Turnier wurde gelöscht.")
-            st.rerun()
-        else:
-            st.warning("Kein Turnier zum Löschen ausgewählt.")
+    # # ---- Optional: Turnier löschen (falls gewünscht) ----
+    # st.markdown("---")
+    # if st.button("Aktuelles Turnier löschen"):
+    #     if st.session_state.current_tournament:
+    #         tournament_manager.delete_tournament(st.session_state.current_tournament)
+    #         st.session_state.tournament_list = tournament_manager.get_all_tournaments()
+    #         st.session_state.current_tournament = None
+    #         st.session_state.data = {}
+    #         st.success("Turnier wurde gelöscht.")
+    #         st.rerun()
+    #     else:
+    #         st.warning("Kein Turnier zum Löschen ausgewählt.")
 
 # ----------------------------------------------------------------------
 # Daten‑Laden (falls noch nicht im Session‑State)
@@ -116,15 +116,15 @@ with tabs[0]:
     tab_new_tournament()
 with tabs[1]:
     tab_group_stage()
-with tabs[2]:
-    pages.tab_courts()
-with tabs[3]:
-    pages.tab_rankings()
-with tabs[4]:
-    pages.tab_finals()
-with tabs[5]:
-    pages.tab_overview()
-with tabs[6]:
-    pages.tab_team_view()
-with tabs[7]:
-    pages.tab_admin()
+# with tabs[2]:
+#     pages.tab_courts()
+# with tabs[3]:
+#     pages.tab_rankings()
+# with tabs[4]:
+#     pages.tab_finals()
+# with tabs[5]:
+#     pages.tab_overview()
+# with tabs[6]:
+#     pages.tab_team_view()
+# with tabs[7]:
+#     pages.tab_admin()

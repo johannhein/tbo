@@ -7,12 +7,10 @@ import streamlit as st
 import pandas as pd
 
 from config.constants import IMPORT_DIR
-from services import tournament_manager
-from services.export_schedule import export_stage
-from services.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE
-from services.persistence import list_csv_files, save_test_tournament
+from utils.export_schedule import export_stage
+from utils.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE
+from utils.persistence import list_csv_files, save_test_tournament, load_csv
 from core.models import Team, Group, Tournament, StageType, MatchSettings, MatchMode, Stage
-from ui.utils import load_csv, get_tournament_types, get_incomplete_groups
 
 
 # ----------------------------------------------------------------------
@@ -28,6 +26,22 @@ def settings_to_ui_values(settings: MatchSettings) -> dict:
         "points": settings.points,
         "tiebreak": settings.tiebreak if settings.tiebreak is not None else 11,
     }
+
+
+def get_incomplete_groups(groups: Dict[str, Group], num_groups: int, total_teams: int,) -> List[str]:
+    """
+    Gibt die Namen aller Gruppen zurück, die **weniger** Teams besitzen
+    als die größte mögliche Gruppe.
+
+    - `max_size = ceil(total_teams / num_groups)` → Größe der größten Gruppe
+    - Jede Gruppe, deren aktuelle Größe < max_size, ist „unvollständig“.
+    """
+    max_size = math.ceil(total_teams / num_groups)   # z. B. 10 Teams / 3 Gruppen → 4
+    incomplete = [
+        name for name, grp in groups.items()
+        if len(grp.teams) < max_size
+    ]
+    return incomplete
 
 
 def get_default_court_assignments(groups: Dict[str, Group], available_courts: List[int]) -> Dict[str, List[int]]:
@@ -178,6 +192,22 @@ def create_groups(team_names: List[str], selected_names: List[str], num_groups: 
     return groups, expected_size
 
 
+def get_tournament_types(df: pd.DataFrame) -> List[str]:
+    """Alle eindeutigen Turnier‑Kategorien aus einer DataFrame."""
+    if "Turnier" not in df.columns:
+        st.error("❗Die CSV‑Datei enthält keine Spalte **Turnier**.")
+        return []
+    types = (
+        df["Turnier"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+        .tolist()
+    )
+    return sorted(types)
+
+
 # ----------------------------------------------------------------------
 # UI Funktionen
 # ----------------------------------------------------------------------
@@ -215,7 +245,7 @@ def ui_select_csv() -> Path | None:
         )
         if upload:
             # temporäre Datei im Daten‑Ordner des Managers anlegen
-            tmp_path = tournament_manager.DATA_DIR / f"tmp_{upload.name}"
+            tmp_path = IMPORT_DIR / f"tmp_{upload.name}"
             with open(tmp_path, "wb") as f:
                 f.write(upload.getbuffer())
             selected_path = tmp_path
@@ -612,11 +642,7 @@ def tab_new_tournament() -> None:
 
         # Ermittlung unvollständiger Gruppen
         total_teams = sum(len(g.teams) for g in groups.values())
-        incomplete = get_incomplete_groups(
-            groups=groups,
-            num_groups=settings["num_groups"],
-            total_teams=total_teams,
-        )
+        incomplete = get_incomplete_groups(groups=groups, num_groups=settings["num_groups"], total_teams=total_teams,)
         st.session_state["incomplete_groups"] = incomplete
 
     # -------------------------------------------------

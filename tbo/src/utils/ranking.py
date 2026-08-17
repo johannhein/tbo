@@ -1,4 +1,3 @@
-# tbo/services/ranking.py
 import pandas as pd
 import functools
 from typing import Dict, List

@@ -4,8 +4,8 @@ from jinja2 import Environment, FileSystemLoader
 
 from config.constants import EXPORT_DIR, TEMPLATE_DIR, TOURNAMENT_NAME
 from core.models import Group, Match, Tournament, StageID, MatchMode
-from services.mapping import MATCH_MODE_TO_SETS, format_modus, ui_modus
-from services.path import ensure_dir
+from utils.mapping import MATCH_MODE_TO_SETS, format_modus, ui_modus
+from utils.path import ensure_dir
 
 
 def get_match_table_data(matches: list[Match], mode: MatchMode) -> dict:

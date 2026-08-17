@@ -4,9 +4,9 @@ import pandas as pd
 
 from config.constants import HIGHLIGHT_COLOR, PICKLE_DIR
 from core.models import Group
-from services.mapping import ui_modus, format_modus
-from services.path import list_files_with_suffix
-from services.persistence import load_tournament
+from utils.mapping import ui_modus, format_modus
+from utils.path import list_files_with_suffix
+from utils.persistence import load_tournament
 
 
 def _match_to_simple_row(match):
@@ -82,12 +82,15 @@ def initialize_tournament():
         st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
         return
 
-    selected_pkl = st.selectbox(
-        "Turnier auswählen",
-        options=["-- keine Auswahl --"] + options,
-        index=0,
-        format_func=lambda x: x if isinstance(x, str) else display_name(x),
-    )
+    cols = st.columns(4)
+
+    with cols[0]:
+        selected_pkl = st.selectbox(
+            "Turnier auswählen",
+            options=["-- keine Auswahl --"] + options,
+            index=0,
+            format_func=lambda x: x if isinstance(x, str) else display_name(x),
+        )
 
     if isinstance(selected_pkl, Path):
         saved_tournament = load_tournament(selected_pkl)
@@ -121,12 +124,15 @@ def tab_group_stage() -> None:
         for team in group.teams:
             all_teams.add(str(team))
 
-    selected_team = st.selectbox(
-        "Team auswählen (für Hervorhebung)",
-        options=["-- keine Auswahl --"] + sorted(all_teams),
-        index=0,
-        key="team_selector"
-    )
+    cols = st.columns(4)
+
+    with cols[0]:
+        selected_team = st.selectbox(
+            "Team auswählen (für Hervorhebung)",
+            options=["-- keine Auswahl --"] + sorted(all_teams),
+            index=0,
+            key="team_selector"
+        )
 
     if selected_team != "-- keine Auswahl --":
         st.session_state["selected_team"] = selected_team
@@ -153,7 +159,6 @@ def tab_group_stage() -> None:
             if grp_1.match_list:
                 rows = [_match_to_simple_row(m) for m in grp_1.match_list]
                 df = pd.DataFrame(rows, columns=["Nr.", "Team 1", "Team 2", "Schiedsrichter"])
-
 
                 styled_df = df.style.apply(highlight_team_in_schedule, axis=1)
                 st.dataframe(styled_df, width="content", hide_index=True)

@@ -1,14 +1,13 @@
 from pathlib import Path
 
-DATA_FILE = Path("results.json")
-
+ASSETS_DIR: Path = Path("tbo/assets")
 IMG_PATH = Path("tbo/assets/header.jpg")
 
-DATA_DIR = Path("tbo/data")
+DATA_DIR: Path = Path("tbo/data")
 PICKLE_DIR = DATA_DIR / "pickle"
-IMPORT_DIR = Path("tbo/import")
-TEMPLATE_DIR = Path("tbo/templates")
-EXPORT_DIR = Path("tbo/export")
+IMPORT_DIR: Path = DATA_DIR /"import"
+TEMPLATE_DIR: Path = ASSETS_DIR / "templates"
+EXPORT_DIR: Path = DATA_DIR / "export"
 
 TOURNAMENT_NAME = "19. Travemünder Beach Open  07./ 08. August 2027"
 

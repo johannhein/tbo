@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Any, Tuple
 
-from services.schedule import SCHEMA_MAP
+from utils.match_planer import SCHEMA_MAP
 
 MatchID = int
 StageID = str
@@ -15,7 +15,7 @@ class MatchStatus(Enum):
     """Zustand eines Matches im Turnier."""
     PENDING   = auto()   # noch nicht gestartet / keine Sätze
     FINISHED  = auto()   # Sieger ermittelt
-    CANCELLED = auto()   # abgesagt (z. B. wegen Verletzung)
+    CANCELLED = auto()   # abgesagt (z. B. wegen Verletzung)
 
 
 class StageType(Enum):
