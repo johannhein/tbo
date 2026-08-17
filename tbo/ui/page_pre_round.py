@@ -1,9 +1,11 @@
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 
-from config.constants import HIGHLIGHT_COLOR
+from config.constants import HIGHLIGHT_COLOR, PICKLE_DIR
 from core.models import Group
 from services.mapping import ui_modus, format_modus
+from services.path import list_files_with_suffix
 from services.persistence import load_tournament
 
 
@@ -15,6 +17,11 @@ def _match_to_simple_row(match):
         "Team 2": match.t2,
         "Schiedsrichter": match.ref or "-",
     }
+
+def display_name(p: Path) -> str:
+    """ Wandelt den Pickle Pfad in den lesbaren Namen um."""
+    stem = p.stem.capitalize()
+    return stem.replace("_", " ")
 
 def highlight_team(selected_team, group: Group) -> None:
     if selected_team:
@@ -64,32 +71,56 @@ def _display_group_info(group, col):
     st.markdown(f"**Modus: {modus}**")
 
 
+def initialize_tournament():
+    """
+    Zeigt eine Select‑Box mit allen *.pkl‑Turnieren im PICKLE_DIR an und speichert die relevanten Daten als
+    st.session_state.
+    """
+    options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
+
+    if not options:
+        st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
+        return
+
+    selected_pkl = st.selectbox(
+        "Turnier auswählen",
+        options=["-- keine Auswahl --"] + options,
+        index=0,
+        format_func=lambda x: x if isinstance(x, str) else display_name(x),
+    )
+
+    if isinstance(selected_pkl, Path):
+        saved_tournament = load_tournament(selected_pkl)
+
+        if saved_tournament is None:
+            st.error("❗ Das Turnier konnte nicht geladen werden. "
+                     "Bitte prüfe die Datei oder wähle eine andere aus.")
+            st.stop()
+        else:
+            # Erfolgreich geladen → Daten in den Session‑State schreiben
+            groups_list = next(iter(saved_tournament.stages.values())).groups
+            st.session_state["groups"] = {g.name: g for g in groups_list}
+            st.session_state["tournament_created"] = True
+            st.session_state["tournament"] = saved_tournament
+
+    elif selected_pkl == "-- keine Auswahl --":
+        st.info("Keine Datei ausgewählt.")
+        st.stop()
+
+
 def tab_group_stage() -> None:
     st.header("🆕 Überblick Vorrunde")
 
-    if not st.session_state["tournament_created"]:
-        saved_tournament = load_tournament()
-        if saved_tournament is not None:
-            st.info("🔍 Ein gespeichertes Turnier wurde gefunden – wird automatisch geladen.")
-            groups_list = next(iter(saved_tournament.stages.values())).groups
-            st.session_state["groups"] = {group.name: group for group in groups_list}
-            st.session_state["tournament_created"] = True
-            st.session_state["test_tournament"] = saved_tournament
-            st.rerun()
-        else:
-            st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
-        return
+    initialize_tournament()
 
     groups = st.session_state["groups"]
     group_names = list(groups.keys())
 
-    # 🔍 Alle Teams sammeln
     all_teams = set()
     for group in groups.values():
         for team in group.teams:
             all_teams.add(str(team))
 
-    # 🎯 Auswahlbox
     selected_team = st.selectbox(
         "Team auswählen (für Hervorhebung)",
         options=["-- keine Auswahl --"] + sorted(all_teams),
