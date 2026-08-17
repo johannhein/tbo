@@ -6,3 +6,4 @@ venv/
 *.csv
 __pycache__/
 tbo/import/
+*.pkl
