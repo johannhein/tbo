@@ -5,6 +5,7 @@ DATA_FILE = Path("results.json")
 IMG_PATH = Path("tbo/assets/header.jpg")
 
 DATA_DIR = Path("tbo/data")
+PICKLE_DIR = DATA_DIR / "pickle"
 IMPORT_DIR = Path("tbo/import")
 TEMPLATE_DIR = Path("tbo/templates")
 EXPORT_DIR = Path("tbo/export")

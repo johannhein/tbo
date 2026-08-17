@@ -7,7 +7,7 @@ import pandas as pd
 from charset_normalizer import from_path
 import streamlit as st
 
-from config.constants import DATA_FILE, GROUP_MATCHES, DATA_DIR
+from config.constants import DATA_FILE, GROUP_MATCHES, DATA_DIR, PICKLE_DIR
 from core.models import Tournament
 
 
@@ -179,15 +179,14 @@ def load_csv(path: Path) -> pd.DataFrame:
 def save_test_tournament(tournament: Tournament, filename: str) -> None:
     """Speichert das Turnier in einer Datei."""
     name = f"{filename}.pkl"
-    path = DATA_DIR / name
+    path = PICKLE_DIR / name
     with open(path, "wb") as f:
         pickle.dump(tournament, f)
     st.success("✅ Turnier wurde gespeichert.")
 
 
-def load_tournament(filename: str = "damen_2026.pkl") -> Tournament | None:
+def load_tournament(path: Path) -> Tournament | None:
     """Lädt das Turnier aus der Datei, falls vorhanden."""
-    path = DATA_DIR / filename
     if not path.exists():
         return None
     try:
