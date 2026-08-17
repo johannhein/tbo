@@ -1,7 +1,7 @@
 from pathlib import Path
 
 ASSETS_DIR: Path = Path("tbo/assets")
-IMG_PATH = Path("tbo/assets/header.jpg")
+IMG_PATH: Path = ASSETS_DIR / "images/header.jpg"
 
 DATA_DIR: Path = Path("tbo/data")
 PICKLE_DIR = DATA_DIR / "pickle"

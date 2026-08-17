@@ -15,7 +15,7 @@ style.inject_css()
 if IMG_PATH.is_file():
     st.image(str(IMG_PATH), width="stretch")
 else:
-    st.warning("Header‑Bild nicht gefunden – bitte prüfe assets/header.jpg")
+    st.warning(f"Header‑Bild nicht gefunden – bitte prüfe {IMG_PATH}")
 
 st.title("🏐 " + TOURNAMENT_NAME)
 
