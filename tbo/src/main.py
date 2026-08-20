@@ -24,10 +24,10 @@ with con as conn:
 st.set_page_config(page_title=TOURNAMENT_NAME, layout="wide", page_icon="🏐")
 style.inject_css()
 
-if IMG_PATH.is_file():
-    st.image(str(IMG_PATH), width="stretch")
-else:
-    st.warning(f"Header‑Bild nicht gefunden – bitte prüfe {IMG_PATH}")
+# if IMG_PATH.is_file():
+#     st.image(str(IMG_PATH), width="stretch")
+# else:
+#     st.warning(f"Header‑Bild nicht gefunden – bitte prüfe {IMG_PATH}")
 
 st.title("🏐 " + TOURNAMENT_NAME)
 
