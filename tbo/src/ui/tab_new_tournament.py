@@ -713,8 +713,8 @@ def tab_new_tournament() -> None:
         group_list: List[Group] = list(st.session_state["groups"].values())
         stage = Stage(id="Vorrunde Gruppenphase", type=StageType.GROUP, teams=st.session_state["teams"],
                       groups=group_list)
-        print(stage.teams)
-        print(stage.groups)
+        # print(stage.teams)
+        # print(stage.groups)
         tournament.add_stage(stage)
         tournament.schedule_stage(stage.id)
         export_stage(tournament, stage.id)
