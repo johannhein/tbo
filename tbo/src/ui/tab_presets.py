@@ -1,36 +1,19 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Streamlit‑App: editierbare Tabelle `tournament_days`.
-- Daten werden nur einmal pro 5 Minuten gecached.
-- Änderungen (Insert/Update/Delete) werden sofort in SQLite geschrieben.
-- Die Tabelle ist zentriert und hat eine maximale Breite von 720 px.
-"""
-
 import sqlite3
-from pathlib import Path
-
 import pandas as pd
 import streamlit as st
 
-from config.constants import MAX_COURT_NUM
 from db.court_store import get_connection
 from db.days_store import load_table, delete_row, upsert_row
 
 # ----------------------------------------------------------------------
-# 0️⃣  Streamlit‑Konfiguration (muss ganz oben stehen!)
+# Streamlit‑Konfiguration
 # ----------------------------------------------------------------------
 st.set_page_config(page_title="Tournament Days Editor", layout="wide")
 
 # ----------------------------------------------------------------------
-# 1️⃣  Pfad zur SQLite‑Datei (anpassen, falls nötig)
+# Cache‑Wrapper
 # ----------------------------------------------------------------------
-
-# ----------------------------------------------------------------------
-# 3️⃣  Cache‑Wrapper – **einmal** definiert, keine freie Variable mehr
-# ----------------------------------------------------------------------
-@st.cache_data(ttl=300)   # 5 Minuten Cache
+@st.cache_data(ttl=300)
 def get_cached_data() -> pd.DataFrame:
     """Lädt die Daten (cached) – kümmert sich selbst um die Connection."""
     with get_connection() as conn:
@@ -49,7 +32,7 @@ def find_day_court_conflicts(df: pd.DataFrame) -> pd.DataFrame:
     # Gruppen, die mehr als einmal vorkommen → Konflikt
     dup = (
         exploded.groupby(["day", "courts"])
-        .filter(lambda g: len(g) > 1)          # >1 = mindestens 2 Turniere nutzen das Feld
+        .filter(lambda g: len(g) > 1)
         .reset_index(drop=True)
     )
 
@@ -58,14 +41,21 @@ def find_day_court_conflicts(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["type"].isin(conflict_types)]
 
 
+def detect_changes( original: pd.DataFrame, edited: pd.DataFrame) -> tuple[list[pd.Series], list[str]]:
+    merged = edited.merge(original[["type"]], on="type", how="left", indicator=True)
+    to_upsert = edited[merged["_merge"] != "right_only"]
+    to_delete = original[~original["type"].isin(edited["type"])]["type"].tolist()
+    return list(to_upsert.itertuples(index=False, name=None)), to_delete
+
+
 # ----------------------------------------------------------------------
-# 4️⃣  UI‑Funktion (Tab‑Inhalt)
+# Tab
 # ----------------------------------------------------------------------
 def tab_presets() -> None:
     st.header("Voreinstellungen")
 
     # --------------------------------------------------------------
-    # 2.1  CSS‑Block (max‑width)
+    # 2.1  CSS‑Block
     # --------------------------------------------------------------
     st.markdown(
         """
@@ -79,19 +69,27 @@ def tab_presets() -> None:
         unsafe_allow_html=True,
     )
 
+    cols = st.columns(5)
+
+    with cols[0]:
+        st.selectbox(
+            "Anzahl der verfügbaren Felder",
+            options=range(1, 20),  # Zahlen von 1 bis 30
+            index=15,
+            key="max_courts_num"
+        )
+
+
     # --------------------------------------------------------------
     # 2.2  Container
     # --------------------------------------------------------------
     with st.container():
         st.markdown('<div class="centered-table">', unsafe_allow_html=True)
 
-        # ----------------------------------------------------------
-        # 2.3  Daten holen (cached)
-        # ----------------------------------------------------------
         df_original = get_cached_data()
 
         # ----------------------------------------------------------
-        # 2.4  Data‑Editor (Breite = content, nicht full‑width)
+        # 2.4  Data‑Editor
         # ----------------------------------------------------------
         st.subheader("📋 Allgemeine Daten")
 
@@ -119,12 +117,9 @@ def tab_presets() -> None:
                         options=["Damen", "Herren", "Mixed"],
                         required=True,
                     ),
-                    # --------------------------------------------------
-                    #  Multiselect – jetzt mit **String‑Optionen**
-                    # --------------------------------------------------
                     "courts": st.column_config.MultiselectColumn(
                         "Felder",
-                        options=[str(i) for i in range(1, MAX_COURT_NUM + 1)],   # "1" … "16"
+                        options=[str(i) for i in range(1, st.session_state["max_courts_num"] + 1)],
                         required=True,
                         help="Mehrere Plätze auswählen – wird als JSON‑String gespeichert",
                     ),
@@ -134,19 +129,18 @@ def tab_presets() -> None:
         with cols[1]:
             st.caption(
                 """
-                • **Primärschlüssel**: `type` muss eindeutig sein.  
+                • **Turnier**: `Tunier` muss eindeutig sein und den Turnieren in der Anmeldung entsprechen.
                 • **Zeilen hinzufügen / entfernen**: Plus‑/Minus‑Symbol unten im Editor.  
+                • **Felder**: Zum Zuweisen zwei Mal in die Zelle klicken.  
                 • **Änderungen erst wirksam** nach Klick auf **„Änderungen speichern“**.  
                 """
             )
 
-        conflict_df = find_day_court_conflicts(edited_df)  # ← NEW
+        conflict_df = find_day_court_conflicts(edited_df)
 
-        if not conflict_df.empty:  # ← NEW
-            # Wir bauen für jede betroffene Zeile eine lesbare Meldung:
+        if not conflict_df.empty:
             for _, row in conflict_df.iterrows():
                 day = row["day"]
-                # Welche Courts dieser Zeile kollidieren?
                 selected = set(row["courts"])
                 # Courts, die an diesem Tag von *anderen* Zeilen gewählt wurden:
                 other = (
@@ -157,23 +151,15 @@ def tab_presets() -> None:
                     .unique()
                 )
                 overlap = selected.intersection(other)
-                if overlap:
-                    st.warning(
-                        f"⚠️ **{row['type']}** am **{day}** verwendet Feld(e) "
-                        f"{sorted(overlap)} – bereits von einem anderen Turnier belegt."
-                    )
+                if len(overlap) == 1:
+                    field = next(iter(overlap))
+                    st.warning(f"⚠️ Das Feld {field} ist schon vom {row['type']} Turnier belegt.")
+                if len(overlap) > 1:
+                    st.warning(f"⚠️ Die Felder {", ".join(sorted(overlap))} sind schon vom {row['type']} Turnier belegt.")
 
         # ----------------------------------------------------------
         # 2.5  Änderungen erkennen
         # ----------------------------------------------------------
-        def detect_changes(
-            original: pd.DataFrame, edited: pd.DataFrame
-        ) -> tuple[list[pd.Series], list[str]]:
-            merged = edited.merge(original[["type"]], on="type", how="left", indicator=True)
-            to_upsert = edited[merged["_merge"] != "right_only"]
-            to_delete = original[~original["type"].isin(edited["type"])]["type"].tolist()
-            return list(to_upsert.itertuples(index=False, name=None)), to_delete
-
         to_upsert, to_delete = detect_changes(df_original, edited_df)
 
         # ----------------------------------------------------------
@@ -206,4 +192,3 @@ def tab_presets() -> None:
         # 2.7  Container schließen
         # ----------------------------------------------------------
         st.markdown("</div>", unsafe_allow_html=True)
-
