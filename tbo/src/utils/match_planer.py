@@ -101,7 +101,9 @@ group_size_6_fields_2 = [
 SCHEMA_MAP: Dict[Tuple[int, int], List[Dict]] = {
     (3, 1): group_size_3,
     (4, 1): group_size_4,
-    (5, 2): group_size_5_fields_2,
     (5, 1): group_size_5,
+    (6, 1): group_size_6,
+    (4, 2): group_size_4_fields_2,
+    (5, 2): group_size_5_fields_2,
     (6, 2): group_size_6_fields_2,
 }
