@@ -37,6 +37,27 @@ def get_cached_data() -> pd.DataFrame:
         return load_table(conn)
 
 
+def find_day_court_conflicts(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Gibt einen DataFrame zurück, der alle Zeilen enthält,
+    deren *einzelne* Courts an dem jeweiligen Tag bereits von
+    einem anderen Turnier belegt sind.
+    """
+    # Jede Court‑ID in eine eigene Zeile bringen
+    exploded = df.explode("courts")
+
+    # Gruppen, die mehr als einmal vorkommen → Konflikt
+    dup = (
+        exploded.groupby(["day", "courts"])
+        .filter(lambda g: len(g) > 1)          # >1 = mindestens 2 Turniere nutzen das Feld
+        .reset_index(drop=True)
+    )
+
+    # Alle betroffenen Turnier‑Typen zurückgeben (Original‑Zeilen)
+    conflict_types = dup["type"].unique()
+    return df[df["type"].isin(conflict_types)]
+
+
 # ----------------------------------------------------------------------
 # 4️⃣  UI‑Funktion (Tab‑Inhalt)
 # ----------------------------------------------------------------------
@@ -118,6 +139,29 @@ def tab_presets() -> None:
                 • **Änderungen erst wirksam** nach Klick auf **„Änderungen speichern“**.  
                 """
             )
+
+        conflict_df = find_day_court_conflicts(edited_df)  # ← NEW
+
+        if not conflict_df.empty:  # ← NEW
+            # Wir bauen für jede betroffene Zeile eine lesbare Meldung:
+            for _, row in conflict_df.iterrows():
+                day = row["day"]
+                # Welche Courts dieser Zeile kollidieren?
+                selected = set(row["courts"])
+                # Courts, die an diesem Tag von *anderen* Zeilen gewählt wurden:
+                other = (
+                    edited_df[edited_df["type"] != row["type"]]
+                    .explode("courts")
+                    .loc[lambda d: d["day"] == day, "courts"]
+                    .astype(str)
+                    .unique()
+                )
+                overlap = selected.intersection(other)
+                if overlap:
+                    st.warning(
+                        f"⚠️ **{row['type']}** am **{day}** verwendet Feld(e) "
+                        f"{sorted(overlap)} – bereits von einem anderen Turnier belegt."
+                    )
 
         # ----------------------------------------------------------
         # 2.5  Änderungen erkennen
