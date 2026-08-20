@@ -1,10 +1,22 @@
 import streamlit as st
 
 from config.constants import TOURNAMENT_NAME, IMG_PATH
+from db.court_store import init_db, get_connection
+from db.days_store import table_exists, create_table_and_fill
 from ui import style
 from ui import pages
-from ui.page_new_tournament import tab_new_tournament
-from ui.page_pre_round import tab_group_stage
+from ui.tab_new_tournament import tab_new_tournament
+from ui.tab_pre_round import tab_group_stage
+from ui.tab_presets import tab_presets
+
+con = get_connection()
+init_db(con)
+
+with con as conn:
+    if not table_exists(conn, "tournament_days"):
+        create_table_and_fill(conn)
+
+
 
 # ----------------------------------------------------------------------
 # Page‑Config & Header‑Bild
@@ -101,6 +113,7 @@ if "data" not in st.session_state:
 # Tabs
 # ----------------------------------------------------------------------
 tab_names = [
+    "⚙️ Voreinstellungen",
     "⚙️ Neues Turnier",
     "📋 Vorrunde",
     "🏟️ Felder",
@@ -113,8 +126,10 @@ tab_names = [
 tabs = st.tabs(tab_names)
 
 with tabs[0]:
-    tab_new_tournament()
+    tab_presets()
 with tabs[1]:
+    tab_new_tournament()
+with tabs[2]:
     tab_group_stage()
 # with tabs[2]:
 #     pages.tab_courts()

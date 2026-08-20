@@ -6,7 +6,9 @@ from typing import List, Dict
 import streamlit as st
 import pandas as pd
 
-from config.constants import IMPORT_DIR
+from config.constants import IMPORT_DIR, MAX_COURT_NUM
+from db.court_store import get_used_courts, set_courts
+from db.days_store import get_courts_for_type
 from utils.export_schedule import export_stage
 from utils.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE
 from utils.persistence import list_csv_files, save_test_tournament, load_csv
@@ -253,6 +255,57 @@ def ui_select_csv() -> Path | None:
     return selected_path
 
 
+def ui_select_courts(tournament_id: str, max_court_num: int = MAX_COURT_NUM,) -> List[int]:
+    """
+    Multiselect‑Widget für die Feld‑Auswahl.
+    - Entfernt alte, nicht mehr gültige Werte aus dem Session‑State.
+    - Gibt eine Warnung aus, wenn das ausgewählte Feld bereits von einem
+      anderen Turnier belegt ist (siehe Abschnitt 2).
+    """
+    options = list(range(1, max_court_num + 1))
+
+    # -------------------------------------------------
+    # 2️⃣  Schlüssel für den Session‑State (eindeutig pro Gruppe)
+    # -------------------------------------------------
+    key = f"assign_courts_{tournament_id}"
+
+    # -------------------------------------------------
+    # 3️⃣  Vorhandenen Wert aus dem Session‑State holen
+    # -------------------------------------------------
+    stored = st.session_state.get(key, [])
+    # Filtere alte Werte, die nicht mehr in den Optionen vorkommen
+    valid_stored = [c for c in stored if c in options]
+    if len(valid_stored) != len(stored):
+        st.session_state[key] = valid_stored
+
+    # -------------------------------------------------
+    # 4️⃣  Felder, die von anderen Turnieren belegt sind
+    # -------------------------------------------------
+    used_elsewhere = get_used_courts(exclude_tournament=tournament_id)
+
+    # -------------------------------------------------
+    # 5️⃣  Multiselect‑Widget
+    # -------------------------------------------------
+    selected = st.multiselect(
+        f"Turnier {tournament_id} – Felder",
+        options=options,
+        max_selections=max_court_num,
+        key=key,
+        default=valid_stored,  # explizit den gefilterten Default setzen
+        placeholder="Bitte verfügbare Felder wählen …",
+    )
+
+    conflicted = set(selected) & used_elsewhere
+    if conflicted:
+        st.warning(
+            f"⚠️ Die Felder {sorted(conflicted)} sind bereits in einem anderen Turnier belegt. "
+            "Bitte wähle andere Felder."
+        )
+    set_courts(tournament_id, selected)
+
+    return selected
+
+
 def ui_select_tournament_type(df):
     """UI zum Auswählen des Turniertyps"""
     types = get_tournament_types(df)
@@ -347,23 +400,6 @@ def ui_select_group_heads(team_to_id: Dict[str, str], max_selections: int,) -> L
     )
 
     return selected_ids
-
-
-def ui_select_courts(max_court_num = 16) -> List[int]:
-    """
-    Auswahl der verfügbaren Felder für die Gruppen.
-    """
-    options = list(range(1, max_court_num + 1))
-
-    selected_courts = st.multiselect(
-        "Verfügbare Felder wählen",
-        options=options,
-        max_selections=max_court_num,
-        key="group_courts",
-        placeholder="Bitte Verfügbare Felder wählen …",
-    )
-
-    return selected_courts
 
 
 def ui_show_groups(groups: Dict[str, Group]) -> None:
@@ -540,11 +576,13 @@ def tab_new_tournament() -> None:
         if not tournament_type:
             return
 
-    with col2:
-        new_selected = ui_select_courts()
+    # tournament_id = f"{tournament_type} {datetime.datetime.now().year}"
 
-        st.session_state["selected_courts"] = new_selected
-
+    # with col2:
+    #     new_selected = ui_select_courts(tournament_id=tournament_id)
+    #
+    #     st.session_state["selected_courts"] = new_selected
+    st.session_state["selected_courts"] = get_courts_for_type(tournament_type)
     df_category = df_all[df_all["Turnier"] == tournament_type]
     st.session_state["teams"] = df_category["Team"]
 
