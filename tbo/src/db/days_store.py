@@ -1,7 +1,6 @@
 import json
 import sqlite3
 from typing import List, Optional
-
 import pandas as pd
 
 from config.constants import TOURNAMENT_DAYS, DB_PATH
@@ -24,22 +23,21 @@ def column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     cols = [row[1] for row in cur.fetchall()]   # row[1] = column‑name
     return column in cols
 
-# --------------------------------------------------------------
-# Tabelle anlegen + Daten einfügen (nur wenn sie noch nicht existiert)
-# --------------------------------------------------------------
+
 def create_table_and_fill(conn: sqlite3.Connection) -> None:
+    """Legt die Tabelle an und füllt sie mit Daten."""
     if not table_exists(conn, "tournament_days"):
         conn.executescript(
             """
-            CREATE TABLE tournament_days (
+            CREATE TABLE IF NOT EXISTS tournament_days (
                 type    TEXT PRIMARY KEY,
                 day     TEXT NOT NULL,
-                height  TEXT NOT NULL,
+                height   TEXT NOT NULL,
                 courts  TEXT NOT NULL
             );
             """
         )
-        # Daten einfügen
+
         conn.executemany(
             "INSERT INTO tournament_days (type, day, height, courts) VALUES (?, ?, ?, ?);",
             TOURNAMENT_DAYS,
@@ -76,7 +74,7 @@ def upsert_row(row: pd.Series) -> None:
     # Strings → ints → JSON‑String, weil wir die Daten in SQLite als int‑Liste speichern wollen
     courts_int = [int(i) for i in row["courts"]]
     row_dict = row.to_dict()
-    row_dict["courts"] = json.dumps(courts_int)  # z. B. "[1,3,5]"
+    row_dict["courts"] = json.dumps(courts_int)
 
     sql = """
           INSERT INTO tournament_days (type, day, height, courts)
@@ -114,15 +112,12 @@ def get_courts_for_type(tournament_type: str) -> Optional[List[int]]:
         row = cur.fetchone()
 
     if row is None:
-        # kein Eintrag mit diesem Typ
         return None
 
     courts_json = row[0]               # z. B. "[2, 3, 4, 5]"
     try:
         # JSON‑String → Python‑Liste von ints
         courts = json.loads(courts_json)
-        # Sicherstellen, dass wir wirklich ints zurückgeben
         return [int(c) for c in courts]
     except Exception:
-        # Falls das Feld kein gültiges JSON ist
         return []
