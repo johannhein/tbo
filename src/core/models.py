@@ -215,9 +215,14 @@ class Group:
     name: str
     teams: List[str]
     teams_target: int
-    assigned_courts: List[int] = field(default_factory=list)
+    assigned_courts: Optional[List[int]] = None
     settings: Optional[MatchSettings] = None
     match_list: List[Match] | None = None
+
+    def __init__(self, name: str, teams: List[str], teams_target: int):
+        self.name = name
+        self.teams = teams or []
+        self.teams_target = teams_target
 
     @property
     def num_teams(self) -> int:
@@ -247,11 +252,6 @@ class Group:
                 f"und {self.num_courts} Feld(er). "
                 f"Verfügbare Kombinationen: {list(SCHEMA_MAP.keys())}"
             ) from exc
-
-    def __init__(self, name: str, teams: List[str], teams_target: int):
-        self.name = name
-        self.teams = teams or []
-        self.teams_target = teams_target
 
     def add_head(self, team_name: str) -> None:
         """
