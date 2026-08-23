@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import Union, List, Iterable
 
@@ -72,3 +73,24 @@ def list_files_with_suffix(folder: Union[str, Path], suffix: str, *, recursive: 
     files.sort()
 
     return [str(p) for p in files] if as_strings else files
+
+
+def delete_folder_completely(folder_path: Path) -> None:
+    """
+    Löscht einen Ordner komplett inklusive aller Unterordner und Dateien.
+    """
+    if not folder_path.exists():
+        print(f"⚠️ Ordner existiert nicht: {folder_path}")
+        return
+
+    if not folder_path.is_dir():
+        print(f"⚠️ Pfad ist kein Ordner: {folder_path}")
+        return
+
+    try:
+        shutil.rmtree(folder_path)
+        print(f"🗑️ Ordner '{folder_path}' wurde erfolgreich gelöscht.")
+    except PermissionError:
+        print(f"❌ Keine Berechtigung, um '{folder_path}' zu löschen.")
+    except Exception as e:
+        print(f"❌ Fehler beim Löschen von '{folder_path}': {e}")
