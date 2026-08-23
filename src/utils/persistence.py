@@ -6,7 +6,8 @@ from charset_normalizer import from_path
 import streamlit as st
 
 from config.constants import PICKLE_DIR
-from core.models import Tournament
+from core.models import Tournament, Group
+from utils.path import ensure_dir
 
 
 def detect_encoding(csv_path: Path) -> str:
@@ -33,16 +34,26 @@ def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str, encoding=enc, delimiter=";")
 
 
-def save_test_tournament(tournament: Tournament, filename: str) -> None:
+def save_tournament(tournament: Tournament, filename: str) -> None:
     """Speichert das Turnier in einer Datei."""
     name = f"{filename}.pkl"
     path = PICKLE_DIR / name
     with open(path, "wb") as f:
         pickle.dump(tournament, f)
-    st.success("✅ Turnier wurde gespeichert.")
+    # st.success("✅ Turnier wurde gespeichert.")
 
 
-def load_tournament(path: Path) -> Tournament | None:
+def save_group(groups: List[Group], filename: str) -> None:
+    """Speichert das Turnier in einer Datei."""
+    name = f"{filename}.pkl"
+    pickle_dir = PICKLE_DIR / "groups"
+    ensure_dir(pickle_dir)
+    path = pickle_dir / name
+    with open(path, "wb") as f:
+        pickle.dump(groups, f)
+
+
+def load_pickle(path: Path) -> Tournament | None:
     """Lädt das Turnier aus der Datei, falls vorhanden."""
     if not path.exists():
         return None
@@ -50,5 +61,5 @@ def load_tournament(path: Path) -> Tournament | None:
         with open(path, "rb") as f:
             return pickle.load(f)
     except Exception as e:
-        st.warning(f"❌ Konnte Turnier nicht laden: {e}")
+        st.warning(f"❌ Konnte Pickle Datei nicht laden: {e}")
         return None
