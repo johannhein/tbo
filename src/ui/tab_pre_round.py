@@ -3,11 +3,12 @@ from typing import List
 import streamlit as st
 import pandas as pd
 
-from config.constants import HIGHLIGHT_COLOR, PICKLE_DIR
+from config.constants import HIGHLIGHT_COLOR, PICKLE_DIR, EXPORT_DIR, NAME_PREROUND
 from core.models import Group, Tournament
+from utils.export_schedule import export_stage
 from utils.mapping import ui_modus, format_modus
 from utils.path import list_files_with_suffix
-from utils.persistence import load_tournament
+from utils.persistence import load_pickle
 
 
 def _match_to_simple_row(match):
@@ -103,7 +104,7 @@ def initialize_tournament():
         st.session_state["tournament"] = None
         return
 
-    saved_tournament = load_tournament(selected_pkl)
+    saved_tournament = load_pickle(selected_pkl)
 
     if saved_tournament is None:
         st.error("❗ Das Turnier konnte nicht geladen werden. Bitte prüfe die Datei.")
@@ -182,9 +183,6 @@ def plot_schedule(group: Group, selected_team: str):
 
 def tab_group_stage() -> None:
     st.header("🆕 Überblick Vorrunde")
-
-    selected_pkl = st.session_state.get("selected_pkl")
-
     options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
 
     if not options:
@@ -208,7 +206,7 @@ def tab_group_stage() -> None:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🔄 Zurücksetzen", key="reset_button"):
             selected_pkl = st.session_state["selected_pkl"]
-            saved_tournament = load_tournament(selected_pkl)
+            saved_tournament = load_pickle(selected_pkl)
 
             if saved_tournament is None:
                 st.error("❌ Fehler beim Neuladen der Datei.")
@@ -314,3 +312,10 @@ def tab_group_stage() -> None:
         else:
             with cols[1]:
                 st.empty()
+
+    if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
+        stage_name = NAME_PREROUND
+        export_stage(tournament=st.session_state["tournament"], stage_id=stage_name)
+        stage = stage_name.lower().replace(" ", "_")
+        path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower() / stage
+        st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
