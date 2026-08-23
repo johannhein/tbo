@@ -64,7 +64,8 @@ def render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tour
         MatchMode=MatchMode,
     )
 
-    export_dir = Path(EXPORT_DIR / (tournament.type.lower() if tournament.type else ""))
+    stage = stage_id.lower().replace(" ", "_")
+    export_dir = Path(EXPORT_DIR / (tournament.type.lower() if tournament.type else "")) / stage
     ensure_dir(export_dir)
 
     out_file = export_dir / f"Spielplan_Gruppe_{group.name}.html"
