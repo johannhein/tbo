@@ -147,42 +147,122 @@ def build_teams(df_category: pd.DataFrame) -> tuple[List[Team], Dict[str, str]]:
     return teams, team_to_id
 
 
+def get_group_size_dict(num_groups: int, group_size: int, group_names: List[str], num_teams: int) -> Dict[str, int]:
+    """Gibt ein Dict mit den Gruppennamen un der Anzahl an Teams wider."""
+    max_num_teams = num_groups * group_size
 
-def create_groups(team_names: List[str], selected_names: List[str], num_groups: int,) -> Dict[str, Group]:
-    """erstellen der Gruppen mit Gruppenköpfen, gleichmäßige Verteilung der Mannschaften auf die Gruppen"""
+    print(f"num_groups: {num_groups}, group_size: {group_size}, max_num_teams: {max_num_teams}, num_teams: {num_teams}")
+
+    group_size_dict = {}
+    if num_teams == max_num_teams:
+        for name in group_names:
+            group_size_dict[name] = group_size
+    if num_teams < max_num_teams:
+        full_groups = num_groups - (max_num_teams - num_teams)
+        for i, name in enumerate(group_names):
+            if i < full_groups:
+                group_size_dict[name] = group_size
+            else:
+                group_size_dict[name] = group_size - 1
+
+    print(group_size_dict)
+
+    return group_size_dict
+
+
+def create_groups(group_df: pd.DataFrame, selected_names: List[str], num_groups: int, group_size: int) -> Dict[str, Group]:
+    """
+    Erstellt Gruppen mit gleichmäßiger Verteilung und berücksichtigt:
+    - Vereinsschutz (Groß-/Kleinschreibung wird ignoriert)
+    - Teams ohne Verein werden ignoriert (kein Schutz)
+    - Kopf-Teams werden zuerst zugewiesen
+    - Restliche Teams werden verteilt, aber mit Vereinsschutz
+    """
     group_names = [chr(ord("A") + i) for i in range(num_groups)]
-    groups: Dict[str, Group] = {name: Group(name=name, teams=[], teams_target=st.session_state["group_size"]) for name in group_names}
+    groups: Dict[str, Group] = {name: Group(name=name,  teams=[], teams_target=group_size) for name in group_names}
 
-    # Köpfe den Gruppen zuweisen (in Reihenfolge)
+    num_teams = len(group_df)
+
+    group_dict = get_group_size_dict(num_groups=num_groups, group_size=group_size, group_names=group_names, num_teams=num_teams)
+
+    # Kopf-Teams zuweisen (in Reihenfolge)
     for i, name in enumerate(selected_names):
         grp_name = group_names[i]
         groups[grp_name].add_head(name)
 
-    # Rest-Teams sammeln (nur einmal!)
-    remaining_names = [name for name in team_names if name not in selected_names]
+    # Verein-Informationen extrahieren (case-insensitive, NaN ignoriert)
+    # Erstelle Mapping: Team → Verein (in lower-case, NaN → None)
+    team_to_verein = {}
+    for _, row in group_df.iterrows():
+        team = row["team"]
+        verein = row.get("verein")
+        if pd.isna(verein) or not str(verein).strip():
+            team_to_verein[team] = None  # Kein Verein → ignoriert
+        else:
+            team_to_verein[team] = str(verein).strip().lower()  # Normalisieren
 
-    # Zufällige Reihenfolge der verfügbaren Teams
-    random.shuffle(remaining_names)
+    assigned_teams = set(selected_names)
 
-    # col_name = "team"  # ggf. anpassen → "teams", "team_name", …
-    # df_clean = group_df[~group_df[col_name].isin(selected_names)].copy()
-    # df_clean.reset_index(drop=True, inplace=True)
+    # Restliche Teams (nicht als Kopf)
+    remaining_teams = [name for name in group_df["team"] if name not in assigned_teams]
 
-    # Zufällige Reihenfolge der verfügbaren Teams
-    random.shuffle(remaining_names)
+    random.shuffle(remaining_teams)
 
-    # Leere Gruppen mit Kopf füllen (in Reihenfolge der Gruppen)
-    for grp in groups.values():
-        if not grp.teams:
-            if not remaining_names:
-                st.warning("⚠️ Es gibt mehr Gruppen als Teams.")
-                break
-            head_name = remaining_names.pop()
-            groups[grp.name].add_head(head_name)
+    # Vereinsschutz: Für jede Gruppe speichern, welche Vereine bereits drin sind
+    assigned_club_per_group = {name: set() for name in group_names}
 
-    # Rest-Teams verteilen (nach Runden-System)
-    for i, name in enumerate(remaining_names):
-        grp_name = group_names[i % num_groups]
+    # Kopf-Teams in Schutz-Liste eintragen
+    for i, name in enumerate(selected_names):
+        grp_name = group_names[i]
+        club = team_to_verein.get(name)
+        if club is not None:  # Nur wenn Verein vorhanden
+            assigned_club_per_group[grp_name].add(club)
+
+    teams_with_no_club = []
+    # Restliche Teams verteilen (mit Vereinsschutz)
+    for name in remaining_teams:
+        verein = team_to_verein.get(name)
+        if verein is None:  # Kein Verein → kein Schutz
+            teams_with_no_club.append(name)
+            continue
+        else:
+            # Verein vorhanden → Schutz aktiv
+            possible_groups = [
+                grp_name
+                for grp_name in group_names
+                if verein not in assigned_club_per_group[grp_name] and len(groups[grp_name].teams) < group_dict[grp_name]
+            ]
+
+            if not possible_groups:
+                # Keine Gruppe mit Schutz → wähle eine nicht-volle Gruppe
+                available_non_full = [
+                    grp_name
+                    for grp_name in group_names
+                    if len(groups[grp_name].teams) < group_dict[grp_name]
+                ]
+                if not available_non_full:
+                    st.warning(f"⚠️ Keine Gruppe mehr verfügbar für Team mit Verein: {name}")
+                    continue
+                else:
+                    grp_name = random.choice(available_non_full)
+            else:
+                grp_name = random.choice(possible_groups)
+
+        groups[grp_name].add_team(name)
+
+    for name in teams_with_no_club:
+        available_non_full = [
+            grp_name
+            for grp_name in group_names
+            if len(groups[grp_name].teams) < group_dict[grp_name]
+        ]
+        if not available_non_full:
+            st.warning(f"⚠️ Keine Gruppe mehr verfügbar für Team: {name}")
+            continue
+        else:
+            grp_name = random.choice(available_non_full)
+
+
         groups[grp_name].add_team(name)
 
     return groups
@@ -335,7 +415,7 @@ def ui_edit_team_names(df_category: pd.DataFrame) -> None:
             key="team_name_editor",
         )
 
-    cols = st.columns(5)
+    cols = st.columns(4)
 
     with cols[0]:
         if st.button("✅ Änderungen übernehmen", key="apply_team_name_changes"):
@@ -347,6 +427,7 @@ def ui_edit_team_names(df_category: pd.DataFrame) -> None:
             st.warning("🔄 Änderungen zurückgesetzt!")
             st.session_state["edited_team_names"] = df_category
             st.rerun()
+
 
 def ui_basic_settings(num_teams: int) -> int:
     """Grundlegende Turnier‑Einstellungen (Teams, Felder, Zeit, Gruppen)"""
@@ -587,18 +668,21 @@ def tab_new_tournament() -> None:
     # Gruppen definieren
     # -------------------------------------------------
     teams, display_to_name = build_teams(df_category)
-    group_df = df_category.rename(columns={
-        "team":   "Team",
-        "name":   "Name",
-        "verein": "Verein / Gruppe",
-        "city":  "City",
+
+    group_df = df_category[["Team", "Name", "Verein / Gruppe", "City"]]
+    group_df = group_df.rename(columns={
+        "Team": "team",
+        "Name": "name",
+        "Verein / Gruppe": "verein",
+        "City": "city",
     })
 
     selected_names = ui_select_group_heads(display_to_name, max_selections=number_groups,)
 
     if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
         team_names = [t.id for t in teams]
-        groups = create_groups(team_names=team_names, selected_names=selected_names, num_groups=number_groups,)
+        groups = create_groups(group_df=group_df, selected_names=selected_names, num_groups=number_groups,
+                               group_size=st.session_state["group_size"], )
         st.session_state["groups"] = groups
         st.session_state["group_names"] = list(groups.keys())
         st.session_state["groups_created"] = True
