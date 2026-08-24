@@ -323,20 +323,30 @@ def ui_edit_team_names(df_category: pd.DataFrame) -> None:
         ),
     }
 
-    edited = st.data_editor(
-        edit_df,
-        num_rows="dynamic",          # Add‑ und Delete‑Buttons aktiv
-        width="stretch",             # neuer Parameter (statt use_container_width)
-        hide_index=False,            # Index‑Spalte (Müll‑Icon) bleibt sichtbar
-        column_config=column_cfg,
-        key="team_name_editor",
-    )
+    col1, col2 = st.columns(2)
 
-    if st.button("✅ Änderungen übernehmen", key="apply_team_name_changes"):
-        st.session_state["edited_team_names"] = edited
-        st.success("✅ Änderungen wurden übernommen!")
+    with col1:
+        edited = st.data_editor(
+            edit_df,
+            num_rows="dynamic",          # Add‑ und Delete‑Buttons aktiv
+            width="stretch",
+            hide_index=False,            # Index‑Spalte (Müll‑Icon) bleibt sichtbar
+            column_config=column_cfg,
+            key="team_name_editor",
+        )
 
+    cols = st.columns(5)
 
+    with cols[0]:
+        if st.button("✅ Änderungen übernehmen", key="apply_team_name_changes"):
+            st.session_state["edited_team_names"] = edited
+            st.success("✅ Änderungen wurden übernommen!")
+
+    with cols[1]:
+        if st.button("🔄 Änderungen zurücksetzen", key="reset_team_name_changes"):
+            st.warning("🔄 Änderungen zurückgesetzt!")
+            st.session_state["edited_team_names"] = df_category
+            st.rerun()
 
 def ui_basic_settings(num_teams: int) -> int:
     """Grundlegende Turnier‑Einstellungen (Teams, Felder, Zeit, Gruppen)"""
@@ -401,32 +411,24 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
     """UI zum Einstellen der Spiel‑Modi für komplette und unvollständige Gruppen."""
     st.subheader("🗂️ Spielmodus")
 
-    if "game_modes" not in st.session_state:
-        # Wir legen sofort MatchSettings‑Objekte an – kein dict!
-        game_mode = {
-            "complete": MatchSettings(modus=MatchMode.SETS_1, points=DEFAULT_POINTS, tiebreak=None),
-            "incomplete": MatchSettings(modus=MatchMode.SETS_1, points=DEFAULT_POINTS, tiebreak=None),
-        }
-
-    else:
-        game_mode = st.session_state["game_modes"]
-        # Falls bereits ein Eintrag existiert, prüfen wir, ob er ein dict ist (z. B. nach einem Reload)
-        for key in ("complete", "incomplete"):
-            val = game_mode.get(key)
-            if isinstance(val, dict):
-                # Konvertiere das dict in ein MatchSettings‑Objekt
-                # Erwartete Schlüssel: "modus" (Enum‑oder String), "points", "tiebreak"
-                modus_raw = val["modus"]
-                # Der Modus kann bereits ein Enum sein oder ein UI‑String
-                if isinstance(modus_raw, str):
-                    modus = UI_TO_MATCH_MODE[modus_raw]  # String → Enum
-                else:
-                    modus = modus_raw  # Enum → Enum
-                game_mode[key] = MatchSettings(
-                    modus=modus,
-                    points=int(val["points"]),
-                    tiebreak=int(val["tiebreak"]) if val.get("tiebreak") else None,
-                )
+    game_mode = st.session_state["game_modes"]
+    # Falls bereits ein Eintrag existiert, prüfen wir, ob er ein dict ist (z. B. nach einem Reload)
+    for key in ("complete", "incomplete"):
+        val = game_mode.get(key)
+        if isinstance(val, dict):
+            # Konvertiere das dict in ein MatchSettings‑Objekt
+            # Erwartete Schlüssel: "modus" (Enum‑oder String), "points", "tiebreak"
+            modus_raw = val["modus"]
+            # Der Modus kann bereits ein Enum sein oder ein UI‑String
+            if isinstance(modus_raw, str):
+                modus = UI_TO_MATCH_MODE[modus_raw]  # String → Enum
+            else:
+                modus = modus_raw  # Enum → Enum
+            game_mode[key] = MatchSettings(
+                modus=modus,
+                points=int(val["points"]),
+                tiebreak=int(val["tiebreak"]) if val.get("tiebreak") else None,
+            )
 
     # UI‑Werte (Strings, ints) für die Selectboxen / Number‑Inputs
     complete_ui   = settings_to_ui_values(game_mode["complete"])
@@ -522,16 +524,11 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
 # Zusammenbauen der Seite
 # ----------------------------------------------------------------------
 def tab_new_tournament() -> None:
-    st.session_state.setdefault("groups_created", False)
-    st.session_state.setdefault("group_names", None)
-
     st.header("🆕 Neues Turnier erstellen")
 
-    if "create_groups_clicked" not in st.session_state:
-        st.session_state.create_groups_clicked = False
-
-    if "tournament_created" not in st.session_state:
-        st.session_state["tournament_created"] = False
+    st.session_state.setdefault("groups_created", False)
+    st.session_state.setdefault("group_names", None)
+    st.session_state["tournament_created"] = False
     st.session_state.setdefault("assign_group_refs", True)  # ← Standard‑Wert
     st.session_state.setdefault("game_modes", {
         "complete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
@@ -609,11 +606,11 @@ def tab_new_tournament() -> None:
         st.rerun()
 
     # Wenn bereits erstellt → Anzeige + weitere Optionen
-    if "groups_final" in st.session_state:
-        groups: Dict[str, Group] = st.session_state["groups_final"]
-        ui_show_groups(groups)
-    elif st.session_state["groups"]:
+    if st.session_state["groups"]:
         groups: Dict[str, Group] = st.session_state["groups"]
+        ui_show_groups(groups)
+    elif "groups_final" in st.session_state:
+        groups: Dict[str, Group] = st.session_state["groups_final"]
         ui_show_groups(groups)
     else:
         groups = {}
