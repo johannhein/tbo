@@ -9,42 +9,14 @@ import pandas as pd
 from config.constants import IMPORT_DIR, MAX_COURT_NUM, DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUPS, NAME_PREROUND
 from db.court_store import get_used_courts, set_courts
 from db.days_store import get_courts_for_type
-from utils.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE
+from utils.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE, settings_to_ui_values
 from utils.persistence import list_csv_files, save_tournament, load_csv
-from core.models import Team, Group, Tournament, StageType, MatchSettings, MatchMode, Stage
+from core.models import Group, Tournament, StageType, MatchSettings, Stage
 
 
 # ----------------------------------------------------------------------
 # Hilfsfunktionen
 # ----------------------------------------------------------------------
-def settings_to_ui_values(settings: MatchSettings) -> dict:
-    """
-    Wandelt ein MatchSettings‑Objekt in ein Dictionary um,
-    das von den Streamlit‑Widgets verwendet werden kann.
-    """
-    return {
-        "modus": MATCH_MODE_TO_UI[settings.modus],
-        "points": settings.points,
-        "tiebreak": settings.tiebreak if settings.tiebreak is not None else DEFAULT_TIEBREAK,
-    }
-
-
-def get_incomplete_groups(groups: Dict[str, Group], num_groups: int, total_teams: int,) -> List[str]:
-    """
-    Gibt die Namen aller Gruppen zurück, die **weniger** Teams besitzen
-    als die größte mögliche Gruppe.
-
-    - `max_size = ceil(total_teams / num_groups)` → Größe der größten Gruppe
-    - Jede Gruppe, deren aktuelle Größe < max_size, ist „unvollständig“.
-    """
-    max_size = math.ceil(total_teams / num_groups)   # z. B. 10 Teams / 3 Gruppen → 4
-    incomplete = [
-        name for name, grp in groups.items()
-        if len(grp.teams) < max_size
-    ]
-    return incomplete
-
-
 def get_default_court_assignments(groups: Dict[str, Group], available_courts: List[int]) -> Dict[str, List[int]]:
     """
     Gibt die Standard-Zuweisung zurück:
@@ -53,7 +25,7 @@ def get_default_court_assignments(groups: Dict[str, Group], available_courts: Li
     - usw.
 
     :param groups: Dict[str, Group] – Gruppen mit Namen (A, B, C, ...)
-    :param available_courts: Liste der verfügbaren Felder (z. B. [1, 2, 3, 4])
+    :param available_courts: Liste der verfügbaren Felder (z. B. [1, 2, 3, 4])
     :return: Dict mit Gruppenname → zugewiesene Felder
     """
     if not available_courts:
@@ -72,22 +44,9 @@ def get_default_court_assignments(groups: Dict[str, Group], available_courts: Li
             assignment[name] = [sorted_courts[i]]
         else:
             assignment[name] = []  # Kein Feld mehr
+            st.warning("Es gibt nicht genug Felder.")
 
     return assignment
-
-
-def calculate_group_size(total_teams: int, num_groups: int) -> int:
-    """
-    Berechnet die minimale Gruppengröße (aufgerundet) aus Anzahl der Teams und Anzahl der Gruppen.
-    """
-    if num_groups <= 0:
-        raise ValueError("Anzahl der Gruppen muss größer als 0 sein.")
-    if total_teams < 0:
-        raise ValueError("Anzahl der Teams darf nicht negativ sein.")
-
-    # Berechnung der minimalen Gruppengröße damit jedes Team einen Platz in einer Gruppe hat
-    min_size = (total_teams + num_groups - 1) // num_groups
-    return min_size
 
 
 def _rebuild_df_from_team_edit(original_df: pd.DataFrame, edited_df: pd.DataFrame, tournament_type: str,) -> pd.DataFrame:
@@ -128,30 +87,9 @@ def _rebuild_df_from_team_edit(original_df: pd.DataFrame, edited_df: pd.DataFram
     return final_df
 
 
-def build_teams(df_category: pd.DataFrame) -> tuple[List[Team], Dict[str, str]]:
-    """
-    Erzeugt Team‑Objekte und ein Mapping von Team‑Name → Team‑ID.
-    """
-    teams: List[Team] = []
-    team_to_id: Dict[str, str] = {}
-
-    for _, row in df_category.iterrows():
-        team = Team(
-            id=str(row["Team"]).strip(),
-            name=str(row["Name"]).strip(),
-            verein=str(row["Verein / Gruppe"]).strip(),
-        )
-        teams.append(team)
-        team_to_id[team.id] = team.id  # → Team‑ID ist der Name
-
-    return teams, team_to_id
-
-
 def get_group_size_dict(num_groups: int, group_size: int, group_names: List[str], num_teams: int) -> Dict[str, int]:
     """Gibt ein Dict mit den Gruppennamen un der Anzahl an Teams wider."""
     max_num_teams = num_groups * group_size
-
-    print(f"num_groups: {num_groups}, group_size: {group_size}, max_num_teams: {max_num_teams}, num_teams: {num_teams}")
 
     group_size_dict = {}
     if num_teams == max_num_teams:
@@ -164,8 +102,6 @@ def get_group_size_dict(num_groups: int, group_size: int, group_names: List[str]
                 group_size_dict[name] = group_size
             else:
                 group_size_dict[name] = group_size - 1
-
-    print(group_size_dict)
 
     return group_size_dict
 
@@ -455,22 +391,33 @@ def ui_basic_settings(num_teams: int) -> int:
     return  num_groups
 
 
-def ui_select_group_heads(team_to_id: Dict[str, str], max_selections: int,) -> List[str]:
+def _format_option(team: str, df: pd.DataFrame) -> str:
+    """Gibt den Anzeigetext für ein Team zurück."""
+    row = df[df["team"] == team].iloc[0]
+    return f"{team} ({row['name']}, {row['verein']})"
+
+
+def ui_select_group_heads(group_df: pd.DataFrame, max_selections: int,) -> List[str]:
     """
     UI für die Auswahl der Gruppenköpfe über den Team‑Namen (aus Spalte 'Team').
     """
-    # Nur die Team‑IDs anzeigen
-    options = list(team_to_id.keys())
+    options = list(group_df["team"])
 
-    selected_ids = st.multiselect(
+    # Lambda-Funktion, die group_df mitnimmt
+    format_func = lambda team: _format_option(team, group_df)
+
+    selected_teams = st.multiselect(
         "Gruppenköpfe auswählen",
         options=options,
         max_selections=max_selections,
         key="group_heads_select",
         placeholder="Bitte Köpfe auswählen …",
+        format_func=format_func,
     )
 
-    return selected_ids
+    return selected_teams
+
+    return selected_teams
 
 
 def ui_show_groups(groups: Dict[str, Group]) -> None:
@@ -667,8 +614,6 @@ def tab_new_tournament() -> None:
     # -------------------------------------------------
     # Gruppen definieren
     # -------------------------------------------------
-    teams, display_to_name = build_teams(df_category)
-
     group_df = df_category[["Team", "Name", "Verein / Gruppe", "City"]]
     group_df = group_df.rename(columns={
         "Team": "team",
@@ -677,10 +622,9 @@ def tab_new_tournament() -> None:
         "City": "city",
     })
 
-    selected_names = ui_select_group_heads(display_to_name, max_selections=number_groups,)
+    selected_names = ui_select_group_heads(group_df, max_selections=number_groups,)
 
     if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
-        team_names = [t.id for t in teams]
         groups = create_groups(group_df=group_df, selected_names=selected_names, num_groups=number_groups,
                                group_size=st.session_state["group_size"], )
         st.session_state["groups"] = groups
@@ -738,8 +682,7 @@ def tab_new_tournament() -> None:
         st.session_state["groups"] = groups
 
         # Ermittlung unvollständiger Gruppen
-        total_teams = sum(len(g.teams) for g in groups.values())
-        incomplete = get_incomplete_groups(groups=groups, num_groups=number_groups, total_teams=total_teams,)
+        incomplete = [name for name, grp in groups.items() if not grp.complete]
         st.session_state["incomplete_groups"] = incomplete
 
     # -------------------------------------------------
