@@ -1,8 +1,10 @@
-data/
+data/export/
 venv/
 *.DS_Store
 *.xlsx
-*.csv
+tbo2026-export.CSV
 __pycache__/
-data/
 *.pkl
+*.egg-info
+.idea/
+*.db
