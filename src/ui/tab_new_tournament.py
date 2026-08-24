@@ -57,11 +57,11 @@ def _rebuild_df_from_team_edit(original_df: pd.DataFrame, edited_df: pd.DataFram
     """
     # Kopie von edited_df, damit wir die Spalte 'Team' als Index verwenden können
     edited = edited_df.copy()
-    edited = edited.set_index("Team")  # → Team als Index
+    edited = edited.set_index("team")  # → Team als Index
 
     # Kopie von original_df, mit 'Team' als Index
     original = original_df.copy()
-    original = original.set_index("Team")  # → Team als Index
+    original = original.set_index("team")  # → Team als Index
 
     # Linker Join: alle Zeilen aus edited_df, mit Daten aus original_df
     merged = edited.merge(
@@ -73,16 +73,16 @@ def _rebuild_df_from_team_edit(original_df: pd.DataFrame, edited_df: pd.DataFram
     )
 
     # → Wir setzen `Turnier` nur für neue Zeilen (wo `Turnier_original` NaN ist)
-    if "Turnier" in merged.columns:
+    if "turnier" in merged.columns:
         # Wenn `Turnier_original` NaN ist → es war kein Match → neues Team
-        mask = merged["Turnier"].isna()
-        merged.loc[mask, "Turnier"] = tournament_type
+        mask = merged["turnier"].isna()
+        merged.loc[mask, "turnier"] = tournament_type
     else:
         # Wenn `Turnier` nicht existiert, fügen wir es hinzu
-        merged["Turnier"] = tournament_type
+        merged["turnier"] = tournament_type
 
     # Index zurücksetzen
-    final_df = merged.reset_index().rename(columns={"index": "Team"})
+    final_df = merged.reset_index().rename(columns={"index": "team"})
 
     return final_df
 
@@ -106,43 +106,65 @@ def get_group_size_dict(num_groups: int, group_size: int, group_names: List[str]
     return group_size_dict
 
 
-def create_groups(group_df: pd.DataFrame, selected_names: List[str], num_groups: int, group_size: int) -> Dict[str, Group]:
+def split_clubs(verein: str) -> List[str]:
+    """
+    Trennt einen Verein mit '/' und normalisiert (lower, strip).
+    Gibt eine Liste von Vereinen zurück.
+    """
+    if pd.isna(verein) or not str(verein).strip():
+        return []
+    return [club.strip().lower() for club in str(verein).split("/") if club.strip()]
+
+
+def create_groups(group_df: pd.DataFrame,  selected_names: List[str], num_groups: int,
+                  group_size: int,) -> Dict[str, Group]:
     """
     Erstellt Gruppen mit gleichmäßiger Verteilung und berücksichtigt:
     - Vereinsschutz (Groß-/Kleinschreibung wird ignoriert)
-    - Teams ohne Verein werden ignoriert (kein Schutz)
+    - Teams mit mehreren Vereinen (z. B. "Möllner SV/TSV Wandsetal") werden korrekt behandelt
     - Kopf-Teams werden zuerst zugewiesen
-    - Restliche Teams werden verteilt, aber mit Vereinsschutz
+    - Teams mit Verein werden zuerst verteilt (mit Schutz)
+    - Teams ohne Verein werden danach verteilt (ohne Schutz)
+    - Keine Gruppe wird über die Zielgröße hinausgefüllt
     """
-    group_names = [chr(ord("A") + i) for i in range(num_groups)]
-    groups: Dict[str, Group] = {name: Group(name=name,  teams=[], teams_target=group_size) for name in group_names}
+    # leere Gruppen erstellen
+    group_names = [str(i + 1) for i in range(num_groups)]
+    groups: Dict[str, Group] = {name: Group(name=name, teams=[], teams_target=group_size) for name in group_names}
 
     num_teams = len(group_df)
 
-    group_dict = get_group_size_dict(num_groups=num_groups, group_size=group_size, group_names=group_names, num_teams=num_teams)
+    # Zielgrößen berechnen: erste `remainder` Gruppen haben +1
+    base_size = num_teams // num_groups
+    remainder = num_teams % num_groups
+    group_dict = {name: base_size + 1 if i < remainder else base_size for i, name in enumerate(group_names)}
 
-    # Kopf-Teams zuweisen (in Reihenfolge)
+    # Kopf-Teams zuweisen
     for i, name in enumerate(selected_names):
         grp_name = group_names[i]
         groups[grp_name].add_head(name)
 
-    # Verein-Informationen extrahieren (case-insensitive, NaN ignoriert)
-    # Erstelle Mapping: Team → Verein (in lower-case, NaN → None)
+    # Verein-Informationen extrahieren
     team_to_verein = {}
     for _, row in group_df.iterrows():
         team = row["team"]
         verein = row.get("verein")
-        if pd.isna(verein) or not str(verein).strip():
-            team_to_verein[team] = None  # Kein Verein → ignoriert
-        else:
-            team_to_verein[team] = str(verein).strip().lower()  # Normalisieren
+        team_to_verein[team] = split_clubs(verein)
 
     assigned_teams = set(selected_names)
 
-    # Restliche Teams (nicht als Kopf)
-    remaining_teams = [name for name in group_df["team"] if name not in assigned_teams]
+    # Teams mit Verein und ohne Verein trennen
+    teams_with_club = [
+        name for name in group_df["team"]
+        if name not in assigned_teams and team_to_verein.get(name)
+    ]
+    teams_without_club = [
+        name for name in group_df["team"]
+        if name not in assigned_teams and not team_to_verein.get(name)
+    ]
 
-    random.shuffle(remaining_teams)
+    # Zufällige Reihenfolge
+    random.shuffle(teams_with_club)
+    random.shuffle(teams_without_club)
 
     # Vereinsschutz: Für jede Gruppe speichern, welche Vereine bereits drin sind
     assigned_club_per_group = {name: set() for name in group_names}
@@ -150,54 +172,55 @@ def create_groups(group_df: pd.DataFrame, selected_names: List[str], num_groups:
     # Kopf-Teams in Schutz-Liste eintragen
     for i, name in enumerate(selected_names):
         grp_name = group_names[i]
-        club = team_to_verein.get(name)
-        if club is not None:  # Nur wenn Verein vorhanden
-            assigned_club_per_group[grp_name].add(club)
+        vereine = team_to_verein.get(name)
+        if vereine:
+            for verein in vereine:
+                assigned_club_per_group[grp_name].add(verein)
 
-    teams_with_no_club = []
-    # Restliche Teams verteilen (mit Vereinsschutz)
-    for name in remaining_teams:
-        verein = team_to_verein.get(name)
-        if verein is None:  # Kein Verein → kein Schutz
-            teams_with_no_club.append(name)
-            continue
-        else:
-            # Verein vorhanden → Schutz aktiv
-            possible_groups = [
+    # Teams mit Verein verteilen (mit Schutz)
+    for name in teams_with_club:
+        vereine = team_to_verein.get(name)  # Liste von Vereinen
+
+        # Verein vorhanden → Schutz aktiv
+        possible_groups = [
+            grp_name
+            for grp_name in group_names
+            if not any(verein in assigned_club_per_group[grp_name] for verein in vereine)
+            and len(groups[grp_name].teams) < group_dict[grp_name]
+        ]
+
+        if not possible_groups:
+            # Keine Gruppe mit Schutz → wähle eine nicht-volle Gruppe
+            available_non_full = [
                 grp_name
                 for grp_name in group_names
-                if verein not in assigned_club_per_group[grp_name] and len(groups[grp_name].teams) < group_dict[grp_name]
+                if len(groups[grp_name].teams) < group_dict[grp_name]
             ]
-
-            if not possible_groups:
-                # Keine Gruppe mit Schutz → wähle eine nicht-volle Gruppe
-                available_non_full = [
-                    grp_name
-                    for grp_name in group_names
-                    if len(groups[grp_name].teams) < group_dict[grp_name]
-                ]
-                if not available_non_full:
-                    st.warning(f"⚠️ Keine Gruppe mehr verfügbar für Team mit Verein: {name}")
-                    continue
-                else:
-                    grp_name = random.choice(available_non_full)
+            if not available_non_full:
+                st.warning(f"⚠️ Keine Gruppe mehr verfügbar für Team mit Verein: {name}")
+                continue
             else:
-                grp_name = random.choice(possible_groups)
+                grp_name = random.choice(available_non_full)
+        else:
+            grp_name = random.choice(possible_groups)
 
         groups[grp_name].add_team(name)
+        for verein in vereine:
+            assigned_club_per_group[grp_name].add(verein)
 
-    for name in teams_with_no_club:
+    # Teams ohne Verein verteilen
+    for name in teams_without_club:
+        # Wähle eine Gruppe, die noch nicht voll ist
         available_non_full = [
             grp_name
             for grp_name in group_names
             if len(groups[grp_name].teams) < group_dict[grp_name]
         ]
         if not available_non_full:
-            st.warning(f"⚠️ Keine Gruppe mehr verfügbar für Team: {name}")
+            st.warning(f"⚠️ Keine Gruppe mehr verfügbar für Team ohne Verein: {name}")
             continue
         else:
             grp_name = random.choice(available_non_full)
-
 
         groups[grp_name].add_team(name)
 
@@ -323,17 +346,17 @@ def ui_select_tournament_type(df):
     return selected
 
 
-def ui_edit_team_names(df_category: pd.DataFrame) -> None:
+def ui_edit_team_names(df_table: pd.DataFrame, tournament_type: str) -> None:
     """
     Zeigt einen Data‑Editor, in dem nur die Spalte 'Team' editierbar ist.
     Zusätzlich wird ein versteckter Index‑Wert (`orig_idx`) mitgeführt,
     damit wir nach dem Editieren exakt wissen, welche Zeile zu welchem
     Original‑Datensatz gehört.
     """
-    edit_df = df_category[["Team"]]
+    edit_df = df_table[["team"]]
 
     column_cfg = {
-        "Team": st.column_config.Column(
+        "team": st.column_config.Column(
             label="Team‑Name",
             width=300,
         ),
@@ -355,13 +378,23 @@ def ui_edit_team_names(df_category: pd.DataFrame) -> None:
 
     with cols[0]:
         if st.button("✅ Änderungen übernehmen", key="apply_team_name_changes"):
-            st.session_state["edited_team_names"] = edited
+            df_full_edit = _rebuild_df_from_team_edit(
+                original_df=df_table,
+                edited_df=edited,
+                tournament_type=tournament_type,
+            )
+            st.session_state["df_table"] = df_full_edit
+            st.session_state["teams"] = df_full_edit["team"]
+            st.session_state["groups"] = {}
             st.success("✅ Änderungen wurden übernommen!")
+            st.rerun()
 
     with cols[1]:
         if st.button("🔄 Änderungen zurücksetzen", key="reset_team_name_changes"):
             st.warning("🔄 Änderungen zurückgesetzt!")
-            st.session_state["edited_team_names"] = df_category
+            st.session_state["df_table"] = st.session_state["reset_df"]
+            st.session_state["teams"] = st.session_state["reset_df"]["team"]
+            st.session_state["groups"] = {}
             st.rerun()
 
 
@@ -417,10 +450,8 @@ def ui_select_group_heads(group_df: pd.DataFrame, max_selections: int,) -> List[
 
     return selected_teams
 
-    return selected_teams
 
-
-def ui_show_groups(groups: Dict[str, Group]) -> None:
+def ui_show_groups(groups: Dict[str, Group], group_df: pd.DataFrame) -> None:
     """UI zur Anzeige der erstellten Gruppen (4 Spalten pro Zeile)"""
     group_names = list(groups.keys())
     for i in range(0, len(group_names), 4):
@@ -429,10 +460,15 @@ def ui_show_groups(groups: Dict[str, Group]) -> None:
             with cols[j]:
                 grp = groups[name]
                 st.markdown(f"### 🟦 **Gruppe {name}**")
-
-                # Teams anzeigen
                 for team in grp.teams:
-                    st.write(team)
+                    try:
+                        club = group_df[group_df["team"] == team].iloc[0]["verein"]
+                        if pd.isna(club):
+                            st.write(f"**{team.lstrip()}**")
+                        else:
+                            st.write(f"**{team.lstrip()}** - {club}")
+                    except IndexError:
+                        pass
 
 
 def ui_game_modes(incomplete_groups: List[str]) -> None:
@@ -440,18 +476,16 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
     st.subheader("🗂️ Spielmodus")
 
     game_mode = st.session_state["game_modes"]
-    # Falls bereits ein Eintrag existiert, prüfen wir, ob er ein dict ist (z. B. nach einem Reload)
     for key in ("complete", "incomplete"):
         val = game_mode.get(key)
         if isinstance(val, dict):
             # Konvertiere das dict in ein MatchSettings‑Objekt
             # Erwartete Schlüssel: "modus" (Enum‑oder String), "points", "tiebreak"
             modus_raw = val["modus"]
-            # Der Modus kann bereits ein Enum sein oder ein UI‑String
             if isinstance(modus_raw, str):
                 modus = UI_TO_MATCH_MODE[modus_raw]  # String → Enum
             else:
-                modus = modus_raw  # Enum → Enum
+                modus = modus_raw
             game_mode[key] = MatchSettings(
                 modus=modus,
                 points=int(val["points"]),
@@ -483,7 +517,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
             key="points_complete",
         )
     with col3:
-        # Tiebreak‑Feld nur anzeigen, wenn der Modus „2 Gewinnsätze“ ist
+        # Tiebreak‑Feld nur anzeigen, wenn der Modus 2 order 3 Gewinnsätze ist
         if sets_complete == "2 Gewinnsätze" or sets_complete == "3 Gewinnsätze":
             tiebreak_complete = st.number_input(
                 "Tiebreak‑Punkte",
@@ -494,7 +528,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
                 key="tiebreak_complete",
             )
         else:
-            tiebreak_complete = None  # Default‑Wert, wird nicht angezeigt
+            tiebreak_complete = None
 
         # Session‑State aktualisieren
         st.session_state["game_modes"]["complete"] = MatchSettings(
@@ -583,30 +617,27 @@ def tab_new_tournament() -> None:
         if not tournament_type:
             return
 
-    # tournament_id = f"{tournament_type} {datetime.datetime.now().year}"
-
-    # with col2:
-    #     new_selected = ui_select_courts(tournament_id=tournament_id)
-    #
-    #     st.session_state["selected_courts"] = new_selected
     st.session_state["selected_courts"] = get_courts_for_type(tournament_type)
     df_category = df_all[df_all["Turnier"] == tournament_type]
-    st.session_state["teams"] = df_category["Team"]
+    df_category = df_category[["Team", "Turnier", "Name", "Verein / Gruppe", "City"]]
+    df_category = df_category.rename(columns={
+        "Team": "team",
+        "Turnier": "turnier",
+        "Name": "name",
+        "Verein / Gruppe": "verein",
+        "City": "city",
+    })
+
+    st.session_state["teams"] = df_category["team"]
+    st.session_state["reset_df"] = df_category
 
     # -------------------------------------------------
     # Team‑Namen editieren
     # -------------------------------------------------
     st.markdown("### ✏️ Zum Editieren der Teamliste")
-    ui_edit_team_names(df_category)
-
-    if "edited_team_names" in st.session_state:
-        edited = st.session_state["edited_team_names"]
-        df_category = _rebuild_df_from_team_edit(
-            original_df=df_category,
-            edited_df=edited,
-            tournament_type=tournament_type,
-        )
-        st.session_state["teams"] = df_category["Team"]
+    if "df_table" in st.session_state:
+        df_category = st.session_state["df_table"]
+    ui_edit_team_names(df_category, tournament_type)
 
     num_teams = len(df_category)
     number_groups = ui_basic_settings(num_teams)
@@ -614,18 +645,13 @@ def tab_new_tournament() -> None:
     # -------------------------------------------------
     # Gruppen definieren
     # -------------------------------------------------
-    group_df = df_category[["Team", "Name", "Verein / Gruppe", "City"]]
-    group_df = group_df.rename(columns={
-        "Team": "team",
-        "Name": "name",
-        "Verein / Gruppe": "verein",
-        "City": "city",
-    })
 
-    selected_names = ui_select_group_heads(group_df, max_selections=number_groups,)
+    selected_names = ui_select_group_heads(df_category, max_selections=number_groups,)
 
     if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
-        groups = create_groups(group_df=group_df, selected_names=selected_names, num_groups=number_groups,
+        if "df_table" in st.session_state:
+            df_category = st.session_state["df_table"]
+        groups = create_groups(group_df=df_category, selected_names=selected_names, num_groups=number_groups,
                                group_size=st.session_state["group_size"], )
         st.session_state["groups"] = groups
         st.session_state["group_names"] = list(groups.keys())
@@ -634,12 +660,14 @@ def tab_new_tournament() -> None:
         st.rerun()
 
     # Wenn bereits erstellt → Anzeige + weitere Optionen
+    print(len(st.session_state["groups"]))
     if st.session_state["groups"]:
+        print(st.session_state["groups"])
         groups: Dict[str, Group] = st.session_state["groups"]
-        ui_show_groups(groups)
+        ui_show_groups(groups, df_category)
     elif "groups_final" in st.session_state:
         groups: Dict[str, Group] = st.session_state["groups_final"]
-        ui_show_groups(groups)
+        ui_show_groups(groups, df_category)
     else:
         groups = {}
 
@@ -699,22 +727,12 @@ def tab_new_tournament() -> None:
                 grp.settings = st.session_state["game_modes"]["incomplete"]
 
         st.session_state["groups_final"] = groups
-        # pickle_name = f"{tournament_type}_groups"
-        # save_group(st.session_state["groups"], pickle_name)
-        # st.session_state["pickle_saved"] = True
 
     # -------------------------------------------------
     # Turnier erstellen
     # -------------------------------------------------
     if st.button("Turnier erstellen", key="create_tournament_button", type="primary",):
         # Feldbelegungen speichern
-        # pickle_name = f"groups/{tournament_type}_groups.pkl"
-        # path: Path = PICKLE_DIR / pickle_name
-        # if  not st.session_state["groups_final"]:
-        #     st.session_state["groups_final"] = load_pickle(path)
-        #     st.session_state["pickle_loaded"] = True
-        #     print("loaded")
-        #     st.rerun()
         total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
         groups = st.session_state["groups_final"]
         if total_assigned > st.session_state["max_court"]:
@@ -737,15 +755,8 @@ def tab_new_tournament() -> None:
         filename = f"{tournament.type.lower()}_{str(year)}"
         save_tournament(tournament, filename)
 
-        # if "pickle_saved" in st.session_state:
-        #     delete_folder_completely(path.parent)
-
         st.session_state["tournament_created"] = True
         st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
-
-        # print(st.session_state["groups"])
-        # print(group_list[0])
-
 
     # -------------------------------------------------
     # Aufräumen (temporäre Upload‑Datei)
