@@ -1,44 +1,76 @@
 # 🏐 Travemünder Beach Open - Turnierauswertung
 
-Eine interaktive, leichtgewichtige Web-Applikation zur Auswertung und Verwaltung der Travemünder Beach Open (TGR Rangenberg). Die Applikation ist mit Python und Streamlit geschrieben und erfordert keine komplexe Datenbank. Alle Daten werden lokal gespeichert. Sie befindet sich in der Entwicklung und noch unvollständig.
+Eine interaktive, leichtgewichtige Web-Applikation zur Auswertung und Verwaltung der **Travemünder Beach Open** (TGR Rangenberg).  
+Die App ist mit **Python** und **Streamlit** entwickelt und erfordert keine komplexe Datenbank – alle Daten werden lokal gespeichert.  
+Das Projekt befindet sich in der Entwicklung und ist noch unvollständig.
+
+---
 
 ## ✨ Features
 
-- **Voreinstellungen**: Definieren der verschiedenen Turniere mit Spieltag, Netzhöhe und verfügbaren Feldern
-- **Neues Turnier**:
-  - Einlesen der Anmeldedaten
-  - Auswählen des Turniertyps
-  - Bearbeiten der Teilnehmerliste
-  - Erstellen der Gruppen
-    - Auswahl der Anzahl an Gruppen
-    - Setzen von Gruppenköpfen
-    - Teams aus den gleichen Vereinen werden, wenn möglich in verschiedene Gruppen aufgeteilt
-    - automatische Zuweisung der einzelnen Felder zu den Gruppen
-  - Einstellen der Spielmodus für vollständige und unvollständige Gruppen
-- **Vorrunde**:
-  - Tauschen von Teams nochmal möglich
-  - Verspätete teams bekommen spätere Spiele
-  - generieren von Spielprotokollen
-- **Automatische Rangliste**: Exakte Rangberechnung nach offiziellen Volleyball-Regeln:
-  1. Gewonnene Sätze (Punkte)
-  2. Direkter Vergleich (bei Punktegleichstand)
-  3. Gesamt-Punktdifferenz (alle erzielten Ballpunkte)
+- **Turnierkonfiguration**:  
+  Definieren von Turniertypen mit Spieltag, Netzhöhe und verfügbaren Feldern.
 
+- **Neues Turnier**:  
+  - Einlesen der Anmeldedaten aus CSV/XLSX  
+  - Auswahl des Turniertyps (Damen, Herren, Quattro, etc.)  
+  - Bearbeitung der Teilnehmerliste  
+  - Erstellen der Gruppen:  
+    - Anzahl der Gruppen festlegen  
+    - Gruppenköpfe auswählen  
+    - Teams aus demselben Verein werden, wenn möglich, in verschiedene Gruppen aufgeteilt  
+    - Automatische Zuweisung der Felder zu den Gruppen  
+  - Einstellung des Spielmodus für vollständige und unvollständige Gruppen
+
+- **Vorrunde**:  
+  - Teams können nachträglich angepasst werden  
+  - Verspätete Teams erhalten spätere Spielzeiten  
+  - Generieren von Spielprotokollen (HTML)
+
+- **Automatische Rangliste**:  
+  Genau nach offiziellen Volleyball-Regeln berechnet:  
+  1. Gewonnene Sätze (Punkte)  
+  2. Direkter Vergleich (bei Punktegleichstand)  
+  3. Punktdifferenz (alle erzielten Ballpunkte)
+
+---
+
+## ✅ **Python 3.13 erforderlich**
+
+Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind.
+
+---
+
+### 🛠️ **Installation von Python 3.13**
+
+#### 🔹 **Windows**
+1. Gehe zu: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+    - Direkter Link zu [Python 3.13](https://www.python.org/downloads/release/python-31315/)
+2. Lade die **Python 3.13.x**-Version herunter (z. B. `Windows installer (64-bit)` (die Datei heißt `python-3.13.15-amd64.exe`))
+    - der Windows `Download Python install manager` ist nicht notwendig
+3. Führe die Installation aus und **markiere die Option**:
+   ```
+   ✅ Add Python to PATH
+   ```
+4. Öffne ein neues Terminal (PowerShell oder CMD) und prüfe:
+   ```bash
+   python --version
+   ```
 ---
 
 ## 🛠️ Installation
 
-Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Python 3** auf deinem System.
+Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Python 3.10+** auf deinem System.
 
-1. **Repository klonen oder herunterladen:**
+1. **Repository klonen:**
    ```bash
-   git clone <dein-repo-link>
-   cd BeachvolleyTurnier
+   git clone https://github.com/johannhein/tbo.git
+   cd tbo
    ```
 
-2. **Virtuelle Umgebung erstellen (optional, aber empfohlen):**
+2. **Virtuelle Umgebung erstellen (empfohlen):**
    ```bash
-   python -m venv venv
+   python -m venv .venv
    # Linux/macOS
    source .venv/bin/activate
    # Windows
@@ -46,9 +78,8 @@ Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Py
    ```
 
 3. **Abhängigkeiten installieren:**
-   Installiere alle nötigen Python-Pakete aus der `pyprojeck.toml`:
    ```bash
-   pip install .
+   pip install -e .
    ```
 
 ---
@@ -58,17 +89,34 @@ Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Py
 Sobald die Installation abgeschlossen ist, kannst du die Applikation lokal starten.
 
 1. **App ausführen:**
-   Starte den lokalen Streamlit-Server mit folgendem Befehl im Terminal:
    ```bash
    streamlit run src/main.py
    ```
 
 2. **Im Browser öffnen:**
-   Streamlit öffnet nun automatisch deinen Standard-Webbrowser unter `http://localhost:8501`. 
+   Streamlit öffnet automatisch deinen Standard-Webbrowser unter `http://localhost:8501`.
 
 3. **Turnier starten:**
-   - Navigiere durch die oberen Tabs (Voreinstellungen, Neues Turnier, Vorrunde).
+   - Navigiere durch die oberen Tabs: **Voreinstellungen**, **Neues Turnier**, **Vorrunde**.
 
 ---
 
+## 🤝 Unterstützt von
 
+- [TGR Rangenberg](https://www.tgr-rangenberg.de)
+- [Beachvolleyball-Community](https://www.beachvolleyball.de)
+
+---
+
+## 🎯 Inspiration & Attribution
+
+Dieses Projekt wurde inspiriert von:
+- [**sandly**](https://github.com/o3d1/sandly) – von o3d1
+
+Wir haben die Kernkonzepte übernommen und für das **Travemünder Beach Open** angepasst.
+
+---
+
+## 📄 Lizenz
+
+Dieses Projekt ist unter der [MIT-Lizenz](LICENSE) veröffentlicht.
