@@ -1,4 +1,5 @@
-from core.models import MatchMode
+from config.constants import DEFAULT_TIEBREAK
+from core.models import MatchMode, MatchSettings
 
 # -------------------------------------------------
 # Mapping
@@ -34,3 +35,15 @@ def format_modus(modus_ui: str, pts: int, tiebreak: int | None = None) -> str:
     if tiebreak is not None:
         parts.append(f"Tiebreak bis {tiebreak}")
     return " ".join(parts)
+
+
+def settings_to_ui_values(settings: MatchSettings) -> dict:
+    """
+    Wandelt ein MatchSettings‑Objekt in ein Dictionary um,
+    das von den Streamlit‑Widgets verwendet werden kann.
+    """
+    return {
+        "modus": MATCH_MODE_TO_UI[settings.modus],
+        "points": settings.points,
+        "tiebreak": settings.tiebreak if settings.tiebreak is not None else DEFAULT_TIEBREAK,
+    }
