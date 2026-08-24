@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "TBO"
+version = "0.1.0"
+description = "Turnier-Manager für Beachvolleyball – Erstellung von Spielplänen, Ranglisten und Protokollen"
+readme = "README.md"
+
+requires-python = ">=3.13"
+
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Framework :: Streamlit",
+    "Intended Audience :: Sports Organizers",
+    "Topic :: Games/Entertainment :: Sports",
+]
+dependencies = [
+    "pandas>=3.0.0",
+    "streamlit>=1.60.0",
+    "jinja2>=3.1.0",
+    "charset-normalizer>=3.0.0",
+]
+
+[project.scripts]
+tablecalc = "src.main:main"
+
+[project.urls]
+Homepage = "https://github.com/deinname/tablecalculation"
+Repository = "https://github.com/deinname/tablecalculation"
+Issues = "https://github.com/deinname/tablecalculation/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+    "core*",
+    "ui*",
+    "utils*",
+    "db*",
+]
