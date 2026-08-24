@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "TBO"
 version = "0.1.0"
-description = "Turnier-Manager für Beachvolleyball – Erstellung von Spielplänen, Ranglisten und Protokollen"
+description = "Turnier-Manager für das TBO – Erstellung von Spielplänen, Ranglisten und Protokollen"
 readme = "README.md"
 
 requires-python = ">=3.13"
