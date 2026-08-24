@@ -1,4 +1,3 @@
-# bvc_cup/ui/style.py
 import streamlit as st
 
 def inject_css():

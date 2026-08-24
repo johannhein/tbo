@@ -6,7 +6,7 @@ import pandas as pd
 from config.constants import TOURNAMENT_DAYS, DB_PATH
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection_days() -> sqlite3.Connection:
     """Einfacher Helper – öffnet (bzw. erstellt) die DB."""
     return sqlite3.connect(DB_PATH)
 
@@ -83,14 +83,14 @@ def upsert_row(row: pd.Series) -> None:
                                           height = excluded.height,
                                           courts = excluded.courts; \
           """
-    with get_connection() as conn:
+    with get_connection_days() as conn:
         conn.execute(sql, row_dict)
         conn.commit()
 
 
 def delete_row(type_key: str) -> None:
     """Löscht eine Zeile anhand des Primary Keys `type`."""
-    with get_connection() as conn:
+    with get_connection_days() as conn:
         conn.execute("DELETE FROM tournament_days WHERE type = ?;", (type_key,))
         conn.commit()
 
@@ -107,7 +107,7 @@ def get_courts_for_type(tournament_type: str) -> Optional[List[int]]:
         WHERE type = ?
         LIMIT 1;
     """
-    with get_connection() as conn:
+    with get_connection_days() as conn:
         cur = conn.execute(query, (tournament_type,))
         row = cur.fetchone()
 

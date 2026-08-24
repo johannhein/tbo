@@ -72,14 +72,11 @@ def _rebuild_df_from_team_edit(original_df: pd.DataFrame, edited_df: pd.DataFram
         suffixes=("", "_original"),  # → um Spalten zu unterscheiden
     )
 
-    # → Wir setzen `Turnier` nur für neue Zeilen (wo `Turnier_original` NaN ist)
+    # Wir setzen `Turnier` nur für neue Zeilen
     if "turnier" in merged.columns:
         # Wenn `Turnier_original` NaN ist → es war kein Match → neues Team
         mask = merged["turnier"].isna()
         merged.loc[mask, "turnier"] = tournament_type
-    else:
-        # Wenn `Turnier` nicht existiert, fügen wir es hinzu
-        merged["turnier"] = tournament_type
 
     # Index zurücksetzen
     final_df = merged.reset_index().rename(columns={"index": "team"})
@@ -660,9 +657,7 @@ def tab_new_tournament() -> None:
         st.rerun()
 
     # Wenn bereits erstellt → Anzeige + weitere Optionen
-    print(len(st.session_state["groups"]))
     if st.session_state["groups"]:
-        print(st.session_state["groups"])
         groups: Dict[str, Group] = st.session_state["groups"]
         ui_show_groups(groups, df_category)
     elif "groups_final" in st.session_state:
