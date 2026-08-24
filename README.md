@@ -60,15 +60,24 @@ Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeat
 
 ## 🛠️ Installation
 
-Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Python 3.10+** auf deinem System.
+Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Python 3.13+** auf deinem System.
+Gehe zu einem Ordner wo du das Projekt speichern möchtest.
+Öffne die Terminal-Shell
 
-1. **Repository klonen:**
+1. **Terminal-Shell öffnen**
+
+    Öffne den Datei-Explorer und gehe in ein Verzeichnis, wo du die Projektdaten speichern möchtest.
+
+    Klicke mit der rechten Maustaste in dem Ordner auf eine leere Stelle und wähle „In Terminal öffnen“ aus dem Menü.
+    Führe anschließen die folgenden Befehle in dem Terminal nacheinander aus.
+
+2. **Repository klonen:**
    ```bash
    git clone https://github.com/johannhein/tbo.git
    cd tbo
    ```
 
-2. **Virtuelle Umgebung erstellen (empfohlen):**
+3. **Virtuelle Umgebung erstellen (empfohlen) und aktivieren:**
    ```bash
    python -m venv .venv
    # Linux/macOS
@@ -77,7 +86,7 @@ Die Installation ist in wenigen Schritten erledigt. Du benötigst lediglich **Py
    .venv\Scripts\activate
    ```
 
-3. **Abhängigkeiten installieren:**
+4. **Abhängigkeiten installieren:**
    ```bash
    pip install -e .
    ```
