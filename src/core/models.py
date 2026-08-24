@@ -268,8 +268,9 @@ class Group:
     def add_team(self, team_name: str):
         if self.complete:
             raise ValueError(f"Gruppe '{self.name}' ist bereits voll ({self.teams_target} Teams).")
-        if team_name not in self.teams:
-            self.teams.append(team_name)
+        else:
+            if team_name not in self.teams:
+                self.teams.append(team_name)
 
     def swap_teams(self, index1: int, index2: int):
         """
