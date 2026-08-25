@@ -1,21 +1,6 @@
-import sqlite3
 from typing import List, Set, Dict, Optional
 
-from config.constants import DB_PATH, SQL_SCHEMA_PATH
-
-
-def get_connection():
-    con = sqlite3.connect(DB_PATH, timeout=30, isolation_level="DEFERRED")
-    con.execute("PRAGMA journal_mode=WAL;")
-    return con
-
-def init_db(con: sqlite3.Connection) -> None:
-    """Liest das Schema‑File und führt es aus."""
-    with open(SQL_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        sql_script = f.read()
-    con.executescript(sql_script)   # führt das komplette Script in einem Rutsch aus
-    con.commit()
-
+from db.db import get_connection
 
 
 def get_used_courts(exclude_tournament: str | None = None) -> Set[int]:
