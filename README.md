@@ -1,4 +1,4 @@
-# 🏐 Travemünder Beach Open – Turnierauswertung
+# 🏐 Travemünder Beach Open – Turnierplaner
 
 ---
 
