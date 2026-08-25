@@ -57,7 +57,7 @@ Genau nach offiziellen Volleyball-Regeln berechnet:
 Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind.  
 Die folgende Anleitung ist für Windows-Systeme optimiert.
 
-> ✅ Wenn Python bereits installiert ist, kannst du direkt mit [Herunterladen des Repositorys](#herunterladen-des-repositorys) fortfahren.
+> ✅ Wenn Python bereits installiert ist, kannst du direkt mit [2.2 Herunterladen des Repositorys](#22-herunterladen-des-repositorys) fortfahren.
 
 ---
 
@@ -65,7 +65,7 @@ Die folgende Anleitung ist für Windows-Systeme optimiert.
 
 1. Gehe zu: [https://www.python.org/downloads/](https://www.python.org/downloads/)
    - Direkter Link zu [Python 3.13.15](https://www.python.org/downloads/release/python-31315/)
-2. Lade die **Windows-Installer (64-Bit)** herunter (z. B. `python-3.13.15-amd64.exe`)
+2. Lade die **Windows-Installer (64-Bit)** herunter (z. B. `python-3.13.15-amd64.exe`)
 3. Führe die Installation aus und **aktiviere die Option**:
    ```
    ✅ Add Python to PATH
@@ -104,7 +104,7 @@ Für das **Git-Klonen** ist eine weitere Installation notwendig.
     cd tbo
     ```
 
-    [Weiter mit: Einrichten der App](#einrichten-der-app)
+    [Weiter mit: 3. Einrichten der App](#3-einrichten-der-app)
 
 ---
 
