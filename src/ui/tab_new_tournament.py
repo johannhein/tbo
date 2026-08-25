@@ -346,7 +346,35 @@ def ui_select_tournament_type(df):
             key="selected_tournament_type",
         )
 
-    st.session_state["selected_courts"] = get_courts_for_type(selected)
+    if "last_selected_type" not in st.session_state or st.session_state["last_selected_type"] != selected:
+        st.session_state["last_selected_type"] = selected
+        st.session_state.setdefault("game_modes", {
+            "complete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
+            "incomplete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
+        })
+        st.session_state["court_assignments"] = {}
+
+        reset_keys = [
+            "teams",
+            "df_table",
+            "reset_df",
+            "groups",
+            "groups_created",
+            "group_names",
+            "group_size",
+            "incomplete_groups",
+            "max_court",
+            "selected_courts",  # ← wird neu gesetzt, aber auch hier sicherstellen
+        ]
+
+        for key in reset_keys:
+            if key in st.session_state:
+                del st.session_state[key]
+
+        # ✅ Neue Kategorie → neue Felder
+        st.session_state["selected_courts"] = get_courts_for_type(selected)
+
+        st.rerun()
 
     return selected
 
@@ -424,7 +452,6 @@ def ui_basic_settings(num_teams: int) -> int:
             st.session_state["num_groups"] = num_groups
             st.session_state["group_size"] = math.ceil(num_teams / num_groups)
             st.session_state["groups"] = {}
-            st.session_state["groups_created"] = False
             if "court_assignments" in st.session_state:
                 existing_groups = set(f"G{i+1}" for i in range(num_groups))
                 stored_groups = set(st.session_state["court_assignments"].keys())
@@ -603,15 +630,10 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
 def tab_new_tournament() -> None:
     st.header("🆕 Neues Turnier erstellen")
 
-    st.session_state.setdefault("groups_created", False)
-    st.session_state.setdefault("group_names", None)
-    st.session_state["tournament_created"] = False
-    st.session_state.setdefault("assign_group_refs", True)  # ← Standard‑Wert
     st.session_state.setdefault("game_modes", {
         "complete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
         "incomplete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
     })
-
     # -------------------------------------------------
     # CSV auswählen / laden
     # -------------------------------------------------
@@ -674,7 +696,6 @@ def tab_new_tournament() -> None:
         )
         st.session_state["groups"] = groups
         st.session_state["group_names"] = list(groups.keys())
-        st.session_state["groups_created"] = True
         st.success("✅ Gruppen wurden erstellt!")
         st.session_state["court_assignments"] = get_default_court_assignments(groups, st.session_state["selected_courts"])
         st.rerun()
@@ -800,7 +821,6 @@ def tab_new_tournament() -> None:
         name = f"{tournament.type} {str(year)}"
         save_tournament(tournament, name)
 
-        st.session_state["tournament_created"] = True
         st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
 
     # -------------------------------------------------
