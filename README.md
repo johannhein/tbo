@@ -175,7 +175,7 @@ Nach erfolgreicher Einrichtung kannst du die Anwendung starten:
 
 1. **App ausführen:**
    ```bash
-   streamlit run src/main.py
+   streamlit run src/core/app.py
    ```
 
 2. **Im Browser öffnen:**  
@@ -191,6 +191,15 @@ Nach erfolgreicher Einrichtung kannst du die Anwendung starten:
 4. **Beenden der App:**  
    Drücke `STRG + C` im Terminal, um die Anwendung zu stoppen.
 
+Wenn du die App später erneut starten möchtest:
+
+1. Öffne den Ordner `tbo` in deinem Datei-Explorer.
+2. Klicke mit der rechten Maustaste im Ordner auf einen leeren Bereich und wähle **„In Terminal öffnen“**.
+3. Gib im Terminal folgenden Befehl ein:
+    
+    ```bash
+    streamlit run src/core/app.py
+    ```
 ---
 
 ## 5. Unterstützt von
