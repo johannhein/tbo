@@ -131,7 +131,7 @@ class Match:
         self.status = MatchStatus.FINISHED
 
     def to_dict(self) -> dict:
-        """Serialisiert das Match für JSON‑Export o. Ä."""
+        """Serialisiert das Match für JSON‑Export o. Ä."""
         return {
             "id": str(self.id),
             "court": self.court,
