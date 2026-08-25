@@ -7,10 +7,11 @@ import streamlit as st
 import pandas as pd
 
 from config.constants import IMPORT_DIR, MAX_COURT_NUM, DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUPS, NAME_PREROUND
+from db import save_tournament
 from db.court_store import get_used_courts, set_courts
 from db.days_store import get_courts_for_type
-from utils.mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE, settings_to_ui_values
-from utils.persistence import list_csv_files, save_tournament, load_csv
+from config import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE, settings_to_ui_values
+from persistence.persistence import list_csv_files, load_csv
 from core.models import Group, Tournament, StageType, MatchSettings, Stage
 
 
@@ -396,7 +397,7 @@ def ui_edit_team_names(df_table: pd.DataFrame, tournament_type: str) -> None:
 
 
 def ui_basic_settings(num_teams: int) -> int:
-    """Grundlegende Turnier‑Einstellungen (Teams, Felder, Zeit, Gruppen)"""
+    """Grundlegende Turnier-Einstellungen (Teams, Felder, Zeit, Gruppen)"""
     st.metric(label="Anzahl Teams", value=num_teams)
 
     col1, col2 = st.columns(2)
@@ -406,19 +407,33 @@ def ui_basic_settings(num_teams: int) -> int:
             "Anzahl der Gruppen",
             min_value=1,
             max_value=max(DEFAULT_GROUPS, len(st.session_state["selected_courts"])),
-            value=max(DEFAULT_GROUPS, len(st.session_state["selected_courts"])),
+            value=st.session_state.get("num_groups", DEFAULT_GROUPS),
             step=1,
             key="num_groups"
         )
 
-        st.session_state["group_size"] = math.ceil(num_teams / num_groups)
+        # ✅ Nur neu berechnen, wenn sich num_groups geändert hat
+        if "num_groups" not in st.session_state or st.session_state["num_groups"] != num_groups:
+            st.session_state["num_groups"] = num_groups
+            st.session_state["group_size"] = math.ceil(num_teams / num_groups)
+
+            # ✅ Leere groups, wenn num_groups sich ändert
+            st.session_state["groups"] = {}
+            st.session_state["groups_created"] = False
+
+            # ✅ Bereinige court_assignments
+            if "court_assignments" in st.session_state:
+                existing_groups = set(f"G{i+1}" for i in range(num_groups))
+                stored_groups = set(st.session_state["court_assignments"].keys())
+                for group_name in stored_groups - existing_groups:
+                    del st.session_state["court_assignments"][group_name]
 
     with col2:
         start_time = st.time_input(
             "Startzeit", value=datetime.time(10, 0), key="start_time"
         )
 
-    return  num_groups
+    return num_groups
 
 
 def _format_option(team: str, df: pd.DataFrame) -> str:
@@ -643,27 +658,37 @@ def tab_new_tournament() -> None:
     # Gruppen definieren
     # -------------------------------------------------
 
-    selected_names = ui_select_group_heads(df_category, max_selections=number_groups,)
+    selected_names = ui_select_group_heads(df_category, max_selections=number_groups, )
 
     if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
         if "df_table" in st.session_state:
             df_category = st.session_state["df_table"]
-        groups = create_groups(group_df=df_category, selected_names=selected_names, num_groups=number_groups,
-                               group_size=st.session_state["group_size"], )
+        st.session_state["group_size"] = math.ceil(num_teams / number_groups)
+        groups = create_groups(
+            group_df=df_category,
+            selected_names=selected_names,
+            num_groups=number_groups,
+            group_size=st.session_state["group_size"],
+        )
         st.session_state["groups"] = groups
         st.session_state["group_names"] = list(groups.keys())
         st.session_state["groups_created"] = True
         st.success("✅ Gruppen wurden erstellt!")
+        st.session_state["court_assignments"] = get_default_court_assignments(groups, st.session_state["selected_courts"])
         st.rerun()
 
     # Wenn bereits erstellt → Anzeige + weitere Optionen
-    if st.session_state["groups"]:
-        groups: Dict[str, Group] = st.session_state["groups"]
-        ui_show_groups(groups, df_category)
-    elif "groups_final" in st.session_state:
-        groups: Dict[str, Group] = st.session_state["groups_final"]
-        ui_show_groups(groups, df_category)
+    if "groups" in st.session_state:
+        if st.session_state["groups"]:
+            groups: Dict[str, Group] = st.session_state["groups"]
+            ui_show_groups(groups, df_category)
+        elif "groups_final" in st.session_state:
+            groups: Dict[str, Group] = st.session_state["groups_final"]
+            ui_show_groups(groups, df_category)
+        else:
+            groups = {}
     else:
+        st.session_state["groups"] = {}
         groups = {}
 
     if groups:
@@ -675,11 +700,6 @@ def tab_new_tournament() -> None:
         if max_total_courts == 0:
             st.warning("⚠️ Keine Felder verfügbar. Bitte wähle mindestens ein Feld aus.")
             st.stop()
-
-        # Automatische Voreinstellung
-        if "court_assignments" not in st.session_state:
-            default_assignments = get_default_court_assignments(groups, selected_courts)
-            st.session_state["court_assignments"] = default_assignments
 
         # Zeige Auswahl
         cols = st.columns(len(groups))
@@ -735,7 +755,18 @@ def tab_new_tournament() -> None:
         else:
             for name, group in groups.items():
                 group.assigned_courts = st.session_state["court_assignments"][name]
-            st.success(f"✅ Felder wurden zugewiesen: {st.session_state['court_assignments']}")
+            assignments = st.session_state["court_assignments"]
+            if assignments:
+                # Erstelle eine Liste von Formatierungen: "Gruppe X: Feld Y,Z"
+                parts = []
+                for group_name, courts in assignments.items():
+                    courts_str = ", ".join(map(str, courts))
+                    parts.append(f"**Gruppe {group_name}:** Feld {courts_str}")
+
+                line = " | ".join(parts)
+                st.success(f"{line}")
+            else:
+                st.info("Keine Felder zugewiesen.")
 
         name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
         tournament = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
@@ -747,8 +778,10 @@ def tab_new_tournament() -> None:
         tournament.schedule_stage(stage.id)
 
         year = datetime.datetime.now().year
-        filename = f"{tournament.type.lower()}_{str(year)}"
-        save_tournament(tournament, filename)
+        # filename = f"{tournament.type.lower()}_{str(year)}"
+        # save_tournament(tournament, filename)
+        name = f"{tournament.type} {str(year)}"
+        save_tournament(tournament, name)
 
         st.session_state["tournament_created"] = True
         st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
