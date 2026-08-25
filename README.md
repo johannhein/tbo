@@ -1,12 +1,18 @@
 # 🏐 Travemünder Beach Open - Turnierauswertung
 
+---
+
+[[_TOC_]]
+
+---
+
 Eine interaktive, leichtgewichtige Web-Applikation zur Auswertung und Verwaltung der **Travemünder Beach Open** (TGR Rangenberg).  
 Die App ist mit **Python** und **Streamlit** entwickelt und erfordert keine komplexe Datenbank – alle Daten werden lokal gespeichert.  
 Das Projekt befindet sich in der Entwicklung und ist noch unvollständig.
 
 ---
 
-## ✨ Features
+## Features
 
 - **Turnierkonfiguration**:  
   Definieren von Turniertypen mit Spieltag, Netzhöhe und verfügbaren Feldern.
@@ -35,15 +41,16 @@ Das Projekt befindet sich in der Entwicklung und ist noch unvollständig.
 
 ---
 
-## ✅ **Python 3.13 erforderlich**
+## Setup
 
-Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind.
+Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind. Die folgenden ANleitung ist für Windows PCs geschrieben.
+
+Wenn Python bereits installiert ist, kannst du [hier](#herunterladen-des-repositorys) weitermachen.
 
 ---
 
-### 🛠️ **Installation von Python 3.13**
+###  **Installation von Python 3.13**
 
-#### 🔹 **Windows**
 1. Gehe zu: [https://www.python.org/downloads/](https://www.python.org/downloads/)
     - Direkter Link zu [Python 3.13](https://www.python.org/downloads/release/python-31315/)
 2. Lade die **Python 3.13.x**-Version herunter (z. B. `Windows installer (64-bit)` – Datei: `python-3.13.15-amd64.exe`)
@@ -59,7 +66,7 @@ Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeat
 
 ---
 
-## 🛠️ **Herunterladen des Repositorys**
+## Herunterladen des Repositorys
 
 Es gibt nun 2 Möglichkeiten das Projekt lokal zu speichern. Entweder mn installiert `git` oder lädt die Daten manuell als Zip-Datei von der Github-Seite herunter. 
 
@@ -166,13 +173,13 @@ Sobald die Installation abgeschlossen ist, kannst du die Applikation starten:
 
 ---
 
-## 🤝 Unterstützt von
+## Unterstützt von
 
 - [TGR Rangenberg](https://www.tgr-rangenberg.de)
 
 ---
 
-## 🎯 Inspiration & Attribution
+## Inspiration & Attribution
 
 Dieses Projekt wurde inspiriert von:
 - [**sandly**](https://github.com/o3d1/sandly) – von o3d1
@@ -181,6 +188,6 @@ Wir haben die Kernkonzepte übernommen und für das **Travemünder Beach Open** 
 
 ---
 
-## 📄 Lizenz
+## Lizenz
 
 Dieses Projekt ist unter der [MIT-Lizenz](LICENSE) veröffentlicht.
