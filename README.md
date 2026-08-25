@@ -95,16 +95,16 @@ Für das **Git-Klonen** ist eine weitere Installation notwendig.
    git --version
    ```
 
-> **Tipp:** Öffne den Datei-Explorer, gehe in dein gewünschtes Projektverzeichnis und klicke mit der rechten Maustaste → „In Terminal öffnen“.
+    > **Tipp:** Öffne den Datei-Explorer, gehe in dein gewünschtes Projektverzeichnis und klicke mit der rechten Maustaste → „In Terminal öffnen“.
+    
+    Führe die folgenden Befehle aus:
+    
+    ```bash
+    git clone https://github.com/johannhein/tbo.git
+    cd tbo
+    ```
 
-Führe die folgenden Befehle aus:
-
-```bash
-git clone https://github.com/johannhein/tbo.git
-cd tbo
-```
-
-[Weiter mit: Einrichten der App](#einrichten-der-app)
+    [Weiter mit: Einrichten der App](#einrichten-der-app)
 
 ---
 
@@ -126,7 +126,7 @@ Wenn du Git nicht installieren möchtest:
        ├── src/
        └── ...
    ```
-6. **Lösche den oberen Ordner `tbo-main`** und benenne den darin enthaltenen Ordner in `tbo` um:
+6. **Lösche der Einfachheit halber die oberste Ordner-Ebene** und benenne den Ordner `tbo-main` in `tbo` um. damit die Struktur wie folgt aussieht:
    ```
    tbo/
    ├── .streamlit/
@@ -134,8 +134,13 @@ Wenn du Git nicht installieren möchtest:
    ├── data/
    ├── src/
    └── ...
-   ```
-7. Gehe in den Ordner `tbo` und öffne ein Terminal (rechte Maustaste → „In Terminal öffnen“).
+   ``` 
+   Dies ist nicht unbedingt notwendig, aber macht es übersichtlicher.
+
+
+7. Gehe in den Ordner `tbo` und öffne ein Terminal (rechte Maustaste → „In Terminal öffnen“). Den Pfad, welchen du nun siehst, sollte auf `tbo` enden. 
+    
+    Die folgenden Anweisungen müssen in dieses Terminal hinkopiert und ausgeführt werden.
 
 ---
 
@@ -151,13 +156,13 @@ Wenn du Git nicht installieren möchtest:
    .venv\Scripts\activate
    ```
 
-   ⚠️ **Falls ein Fehler erscheint** (z. B. „Execution Policy“), führe Folgendes aus und wiederhole den vorherigen Schritt:
+   **Falls ein Fehler erscheint** (z. B. „Execution Policy“), führe Folgendes aus und wiederhole den vorherigen Schritt:
 
    ```bash
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
 
-3. Installiere die Abhängigkeiten:
+3. Installieren der benötigten Python Pakete:
    ```bash
    pip install .
    ```
@@ -196,7 +201,11 @@ Nach erfolgreicher Einrichtung kannst du die Anwendung starten:
 
 ## Inspiration
 
-DiGrundgerüst und die idee für die Umsetzung wurde übernommen und speziell für das **Travemünder Beach Open** angepasst und erweitert.
+Das Grundgerüst und die Idee wurde übernommen von:
+
+- [**sandly**](https://github.com/o3d1/sandly) – von o3d1
+
+Und für das **Travemünder Beach Open** angepasst und erweitert.
 
 ---
 
