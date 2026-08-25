@@ -1,8 +1,7 @@
 import streamlit as st
 
 from config.constants import TOURNAMENT_NAME
-from db.court_store import init_db, get_connection
-from db.days_store import table_exists, create_table_and_fill
+from db import init_db, get_connection, table_exists, create_table_and_fill
 from ui import style
 from ui.tab_new_tournament import tab_new_tournament
 from ui.tab_pre_round import tab_group_stage

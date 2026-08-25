@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Any, Tuple
 
-from utils.match_planer import SCHEMA_MAP
+from config import SCHEMA_MAP
 
 MatchID = int
 StageID = str

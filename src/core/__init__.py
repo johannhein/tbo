@@ -1,4 +1,4 @@
-from .models import Match, MatchStatus, MatchMode, MatchID, StageID, Tournament, Stage, Group, MatchSettings, Team, SCHEMA_MAP
+from .models import Match, MatchStatus, MatchMode, MatchID, StageID, Tournament, Stage, Group, MatchSettings, Team
 
 __all__ = [
     # match
@@ -12,5 +12,4 @@ __all__ = [
     "Group",
     "MatchSettings",
     "Team",
-    "SCHEMA_MAP",
 ]

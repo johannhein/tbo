@@ -37,8 +37,10 @@ Issues = "https://github.com/deinname/tablecalculation/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
+    "config",
     "core*",
     "ui*",
     "utils*",
     "db*",
+    "persistence*",
 ]

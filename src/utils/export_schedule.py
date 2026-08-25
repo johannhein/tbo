@@ -2,13 +2,13 @@ from __future__ import annotations
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
+from core import Group, Match, Tournament, StageID, MatchMode
 from config.constants import EXPORT_DIR, TEMPLATE_DIR, TOURNAMENT_NAME
-from core.models import Group, Match, Tournament, StageID, MatchMode
-from utils.mapping import MATCH_MODE_TO_SETS, format_modus, ui_modus
-from utils.path import ensure_dir
+from persistence import ensure_dir
+from config import MATCH_MODE_TO_SETS, format_modus, ui_modus
 
 
-def get_match_table_data(matches: list[Match], mode: MatchMode) -> dict:
+def _get_match_table_data(matches: list[Match], mode: MatchMode) -> dict:
     """Liefert ein Dictionary, das das Template leicht verarbeiten kann."""
     max_set_count = 0
     rows = []
@@ -45,7 +45,7 @@ def render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tour
 
     modus = format_modus(modus_ui=modus_ui, pts=group.settings.points, tiebreak=group.settings.tiebreak)
 
-    table_data = get_match_table_data(group.match_list, group.settings.modus)
+    table_data = _get_match_table_data(group.match_list, group.settings.modus)
 
     env = Environment(
         loader=FileSystemLoader(Path(template_dir).absolute()),
@@ -72,10 +72,3 @@ def render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tour
     out_file.write_text(rendered, encoding="utf-8")
     print(f"✅ HTML-Datei geschrieben: {out_file.resolve()}")
     return out_file
-
-
-def export_stage(tournament: Tournament, stage_id: StageID):
-    stage = tournament.get_stage(stage_id)
-
-    for group in stage.groups:
-        render_group_schedule_html(group=group, stage_id=stage_id, tournament=tournament)

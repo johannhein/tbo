@@ -7,7 +7,7 @@ import streamlit as st
 
 from config.constants import PICKLE_DIR
 from core.models import Tournament, Group
-from utils.path import ensure_dir
+from persistence.path import ensure_dir
 
 
 def detect_encoding(csv_path: Path) -> str:
@@ -34,7 +34,7 @@ def load_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str, encoding=enc, delimiter=";")
 
 
-def save_tournament(tournament: Tournament, filename: str) -> None:
+def save_tournament_pickle(tournament: Tournament, filename: str) -> None:
     """Speichert das Turnier in einer Datei."""
     name = f"{filename}.pkl"
     path = PICKLE_DIR / name
