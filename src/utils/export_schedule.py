@@ -36,8 +36,8 @@ def _get_match_table_data(matches: list[Match], mode: MatchMode) -> dict:
     return {"max_set_count": max_set_count, "rows": rows}
 
 
-def render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tournament, *,
-                               template_dir: str = TEMPLATE_DIR, header: str = TOURNAMENT_NAME,) -> Path:
+def _render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tournament, *,
+                                template_dir: str = TEMPLATE_DIR, header: str = TOURNAMENT_NAME, ) -> Path:
     """Rendert eine HTML-Datei für das Spielprotokoll einer Gruppe."""
     t_type = tournament.type or ""
     stage_name = f"{stage_id} {t_type}"
@@ -72,3 +72,10 @@ def render_group_schedule_html(group: Group, stage_id: StageID, tournament: Tour
     out_file.write_text(rendered, encoding="utf-8")
     print(f"✅ HTML-Datei geschrieben: {out_file.resolve()}")
     return out_file
+
+
+def export_stage(tournament: Tournament, stage_id: StageID):
+    stage = tournament.get_stage(stage_id)
+
+    for group in stage.groups:
+        _render_group_schedule_html(group=group, stage_id=stage_id, tournament=tournament)
