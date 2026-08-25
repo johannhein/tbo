@@ -4,13 +4,13 @@
 
 ## Inhaltsverzeichnis
 
-- [Features](#features)
-- [Voraussetzungen](#voraussetzungen)
-- [Einrichten der App](#einrichten-der-app)
-- [Starten der App](#starten-der-app)
-- [Unterstützt von](#unterstützt-von)
-- [Inspiration](#inspiration)
-- [Lizenz](#lizenz)
+- [1. Features](#1-features)
+- [2. Voraussetzungen](#2-voraussetzungen)
+- [3. Einrichten der App](#3-einrichten-der-app)
+- [4. Starten der App](#4-starten-der-app)
+- [5.Unterstützt von](#5-unterstützt-von)
+- [6.Inspiration](#6-inspiration)
+- [7. Lizenz](#7-lizenz)
 
 ---
 
@@ -20,15 +20,15 @@ Das Projekt befindet sich in der Entwicklung und ist noch nicht vollständig abg
 
 ---
 
-## Features
+## 1. Features
 
-### Turnierkonfiguration
+### 1.1 Turnierkonfiguration
 - Definieren von Turniertypen (z. B. Damen, Herren, Quattro) mit:
   - Spieltag
   - Netzhöhe
   - Anzahl verfügbarer Felder
 
-### Neues Turnier
+### 1.2 Neues Turnier
 - **Anmeldedaten importieren** aus CSV oder XLSX
 - Auswahl des Turniertyps
 - Bearbeitung der Teilnehmerliste (Hinzufügen, Löschen, Ändern)
@@ -39,12 +39,12 @@ Das Projekt befindet sich in der Entwicklung und ist noch nicht vollständig abg
   - Automatische Zuweisung von Feldern zu Gruppen
 - Einstellung des Spielmodus für vollständige und unvollständige Gruppen
 
-### Vorrunde
+### 1.2 Vorrunde
 - Nachträgliche Anpassung von Teams
 - Berücksichtigung verspäteter Teams (spätere Spielzeiten)
 - Generierung von Spielprotokollen im HTML-Format (für Druck oder Weitergabe)
 
-### Automatische Rangliste
+### 1.3 Automatische Rangliste
 Genau nach offiziellen Volleyball-Regeln berechnet:
 1. Gewonnene Sätze (Punkte)
 2. Direkter Vergleich (bei Punktegleichstand)
@@ -52,7 +52,7 @@ Genau nach offiziellen Volleyball-Regeln berechnet:
 
 ---
 
-## Voraussetzungen
+## 2. Voraussetzungen
 
 Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind.  
 Die folgende Anleitung ist für Windows-Systeme optimiert.
@@ -61,7 +61,7 @@ Die folgende Anleitung ist für Windows-Systeme optimiert.
 
 ---
 
-### Installation von Python 3.13
+### 2.1 Installation von Python 3.13
 
 1. Gehe zu: [https://www.python.org/downloads/](https://www.python.org/downloads/)
    - Direkter Link zu [Python 3.13.15](https://www.python.org/downloads/release/python-31315/)
@@ -78,7 +78,7 @@ Die folgende Anleitung ist für Windows-Systeme optimiert.
 
 ---
 
-### Herunterladen des Repositorys
+### 2.2 Herunterladen des Repositorys
 
 Es gibt zwei Möglichkeiten, das Projekt lokal zu erhalten: **Git-Klonen** oder **ZIP-Download**.
 Für das **Git-Klonen** ist eine weitere Installation notwendig.
@@ -144,7 +144,7 @@ Wenn du Git nicht installieren möchtest:
 
 ---
 
-## Einrichten der App
+## 3. Einrichten der App
 
 1. Erstelle eine virtuelle Umgebung (empfohlen):
    ```bash
@@ -169,7 +169,7 @@ Wenn du Git nicht installieren möchtest:
 
 ---
 
-## Starten der App
+## 4. Starten der App
 
 Nach erfolgreicher Einrichtung kannst du die Anwendung starten:
 
@@ -193,13 +193,13 @@ Nach erfolgreicher Einrichtung kannst du die Anwendung starten:
 
 ---
 
-## Unterstützt von
+## 5. Unterstützt von
 
 - [TGR Rangenberg](https://www.tgr-rangenberg.de)
 
 ---
 
-## Inspiration
+## 6. Inspiration
 
 Das Grundgerüst und die Idee wurde übernommen von:
 
@@ -209,7 +209,7 @@ Und für das **Travemünder Beach Open** angepasst und erweitert.
 
 ---
 
-## Lizenz
+## 7. Lizenz
 
 Dieses Projekt ist unter der [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) lizenziert.  
 Nutzung und Bearbeitung sind nur für **nicht-kommerzielle Zwecke** erlaubt – mit Namensnennung
