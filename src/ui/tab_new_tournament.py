@@ -21,31 +21,36 @@ from core.models import Group, Tournament, StageType, MatchSettings, Stage
 def get_default_court_assignments(groups: Dict[str, Group], available_courts: List[int]) -> Dict[str, List[int]]:
     """
     Gibt die Standard-Zuweisung zurück:
-    - Gruppe A → kleinstes Feld
-    - Gruppe B → nächstes
+    - Gruppe 1 → kleinstes Feld
+    - Gruppe 2 → nächstes
     - usw.
 
-    :param groups: Dict[str, Group] – Gruppen mit Namen (A, B, C, ...)
+    :param groups: Dict[str, Group] – Gruppen mit Namen (z. B. "1", "2", "A", "B")
     :param available_courts: Liste der verfügbaren Felder (z. B. [1, 2, 3, 4])
     :return: Dict mit Gruppenname → zugewiesene Felder
     """
     if not available_courts:
         return {name: [] for name in groups.keys()}
 
-    # Sortiere Gruppen nach Namen (A, B, C, ...)
-    sorted_group_names = sorted(groups.keys())
+    def sort_key(name: str) -> int | str:
+        try:
+            return int(name)
+        except ValueError:
+            return name
+
+    sorted_group_names = sorted(groups.keys(), key=sort_key)
 
     # Sortiere Felder
     sorted_courts = sorted(available_courts)
 
-    # Zuweisung: A → 1. Feld, B → 2. Feld, usw.
+    # Zuweisung: 1 → 1. Feld, 2 → 2. Feld, usw.
     assignment = {}
     for i, name in enumerate(sorted_group_names):
         if i < len(sorted_courts):
             assignment[name] = [sorted_courts[i]]
         else:
-            assignment[name] = []  # Kein Feld mehr
-            st.warning("Es gibt nicht genug Felder.")
+            assignment[name] = []
+            st.warning(f"⚠️ Es gibt nicht genug Felder für Gruppe {name}.")
 
     return assignment
 
@@ -341,6 +346,8 @@ def ui_select_tournament_type(df):
             key="selected_tournament_type",
         )
 
+    st.session_state["selected_courts"] = get_courts_for_type(selected)
+
     return selected
 
 
@@ -416,12 +423,8 @@ def ui_basic_settings(num_teams: int) -> int:
         if "num_groups" not in st.session_state or st.session_state["num_groups"] != num_groups:
             st.session_state["num_groups"] = num_groups
             st.session_state["group_size"] = math.ceil(num_teams / num_groups)
-
-            # ✅ Leere groups, wenn num_groups sich ändert
             st.session_state["groups"] = {}
             st.session_state["groups_created"] = False
-
-            # ✅ Bereinige court_assignments
             if "court_assignments" in st.session_state:
                 existing_groups = set(f"G{i+1}" for i in range(num_groups))
                 stored_groups = set(st.session_state["court_assignments"].keys())
@@ -629,7 +632,6 @@ def tab_new_tournament() -> None:
         if not tournament_type:
             return
 
-    st.session_state["selected_courts"] = get_courts_for_type(tournament_type)
     df_category = df_all[df_all["Turnier"] == tournament_type]
     df_category = df_category[["Team", "Turnier", "Name", "Verein / Gruppe", "City"]]
     df_category = df_category.rename(columns={
@@ -701,18 +703,33 @@ def tab_new_tournament() -> None:
             st.warning("⚠️ Keine Felder verfügbar. Bitte wähle mindestens ein Feld aus.")
             st.stop()
 
-        # Zeige Auswahl
-        cols = st.columns(len(groups))
-        for i, (name, group) in enumerate(groups.items()):
-            with cols[i]:
-                current_courts = st.session_state["court_assignments"].get(name, [])
-                new_courts = st.multiselect(
-                    f"Gruppe {name} – Felder",
-                    options=selected_courts,
-                    default=current_courts,
-                    key=f"assign_courts_{name}"
-                )
-                st.session_state["court_assignments"][name] = new_courts
+        court_assignments = st.session_state.get("court_assignments", {})
+
+        # ✅ Gruppen in Blöcken zu je 4 pro Zeile
+        group_names = list(groups.keys())
+        for i in range(0, len(group_names), 4):
+            group_block = group_names[i: i + 4]
+            cols = st.columns(4)  # 4 Spalten pro Zeile
+
+            for j, name in enumerate(group_block):
+                with cols[j]:
+                    # ✅ Filtere ungültige Felder aus default
+                    current_courts = court_assignments.get(name, [])
+                    valid_courts = [c for c in current_courts if c in selected_courts]
+                    if len(valid_courts) != len(current_courts):
+                        st.warning(f"⚠️ Ungültige Felder entfernt: {set(current_courts) - set(selected_courts)}")
+
+                    # ✅ Multiselect mit gültigem default
+                    new_courts = st.multiselect(
+                        f"Gruppe {name} – Felder",
+                        options=selected_courts,
+                        default=valid_courts,
+                        key=f"assign_courts_{name}",
+                        placeholder="Felder auswählen …",
+                    )
+
+                    # ✅ Speichere nur gültige Felder zurück
+                    st.session_state["court_assignments"][name] = new_courts
 
         # Summe der zugewiesenen Felder
         total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
