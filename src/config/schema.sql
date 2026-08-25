@@ -17,3 +17,13 @@ CREATE TABLE IF NOT EXISTS court_heights_global (
     height_category TEXT    NOT NULL,
     UNIQUE (court, day, year)
 );
+
+-- -----------------------------------------------------------------
+-- Tabelle zum Abspeichern der erstellten Turniere als BLOB
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tournaments
+(
+    name TEXT PRIMARY KEY,
+    data BLOB,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
