@@ -3,12 +3,11 @@ from typing import List
 import streamlit as st
 import pandas as pd
 
-from config.constants import HIGHLIGHT_COLOR, PICKLE_DIR, EXPORT_DIR, NAME_PREROUND
-from core.models import Group, Tournament
-from utils.export_schedule import export_stage
-from utils.mapping import ui_modus, format_modus
-from utils.path import list_files_with_suffix, ensure_dir
-from utils.persistence import load_pickle
+from config import ui_modus, format_modus
+from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
+from core.models import Group, Tournament, StageID
+from db import load_tournament, get_all_tournament_names
+from utils import export_stage
 
 
 def _match_to_simple_row(match):
@@ -20,10 +19,12 @@ def _match_to_simple_row(match):
         "Schiedsrichter": match.ref or "-",
     }
 
+
 def display_name(p: Path) -> str:
     """ Wandelt den Pickle Pfad in den lesbaren Namen um."""
     stem = p.stem.capitalize()
     return stem.replace("_", " ")
+
 
 def highlight_team(selected_team, group: Group) -> None:
     """ Highlight the selected team in the text."""
@@ -40,6 +41,7 @@ def highlight_team(selected_team, group: Group) -> None:
         st.markdown(f"**Teams:** {teams_html}", unsafe_allow_html=True)
     else:
         st.markdown(f"**Teams:** {', '.join(str(t) for t in group.teams)}")
+
 
 def highlight_team_in_schedule(row):
     """ Highlight the selected team in the table."""
@@ -73,38 +75,41 @@ def _display_group_info(group, col):
 
     st.markdown(f"**Modus: {modus}**")
 
-def load_savestates(saved_tournament: Tournament, selected_pkl: str):
+def load_savestates(saved_tournament: Tournament, selected_tournament: str):
     """Lädt die Pickle-Datei und legt die Savestates an."""
     groups_list = next(iter(saved_tournament.stages.values())).groups
     st.session_state["groups"] = {g.name: g for g in groups_list}
     st.session_state["tournament"] = saved_tournament
     st.session_state["tournament_loaded"] = True
-    st.session_state["last_selected_pkl"] = selected_pkl  # Speichere letzte Auswahl
+    st.session_state["last_selected_tournament"] = selected_tournament  # Speichere letzte Auswahl
 
 def initialize_tournament():
     """Lädt das ausgewählte Turnier, nur wenn sich die Auswahl geändert hat."""
-    selected_pkl = st.session_state.get("selected_pkl")
+    selected_tournament = st.session_state.get("selected_tournament")
 
     # Wenn bereits geladen und die Auswahl gleich bleibt → überspringen
-    if st.session_state.get("tournament_loaded") and st.session_state.get("last_selected_pkl") == selected_pkl:
+    if st.session_state.get("tournament_loaded") and st.session_state.get("last_selected_tournament") == selected_tournament:
         return
 
     # Wenn keine Auswahl → zurück
-    if selected_pkl is None or selected_pkl == "-- keine Auswahl --":
+    if selected_tournament is None or selected_tournament == "-- keine Auswahl --":
         st.session_state["tournament_loaded"] = False
         st.session_state["groups"] = {}
         st.session_state["tournament"] = None
         return
 
     # Lade die Datei
-    options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
-    if selected_pkl not in options:
+    # options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
+    options = get_all_tournament_names()
+    if selected_tournament not in options:
         st.session_state["tournament_loaded"] = False
         st.session_state["groups"] = {}
         st.session_state["tournament"] = None
         return
 
-    saved_tournament = load_pickle(selected_pkl)
+    # saved_tournament = load_pickle(selected_tournament)
+    saved_tournament = load_tournament(selected_tournament)
+
 
     if saved_tournament is None:
         st.error("❗ Das Turnier konnte nicht geladen werden. Bitte prüfe die Datei.")
@@ -113,7 +118,7 @@ def initialize_tournament():
         st.session_state["tournament"] = None
         return
 
-    load_savestates(saved_tournament, selected_pkl)
+    load_savestates(saved_tournament, selected_tournament)
 
 
 def trade_teams(team_a: str, team_b: str):
@@ -169,6 +174,7 @@ def delay_teams(delayed_teams: List[str]):
 
 
 def plot_schedule(group: Group, selected_team: str):
+    """Plottet den Spielplan für die UI."""
     highlight_team(selected_team, group)
 
     if group.match_list:
@@ -183,8 +189,7 @@ def plot_schedule(group: Group, selected_team: str):
 
 def tab_group_stage() -> None:
     st.header("🆕 Überblick Vorrunde")
-    ensure_dir(PICKLE_DIR)
-    options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
+    options = get_all_tournament_names()
 
     if not options:
         st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
@@ -193,26 +198,25 @@ def tab_group_stage() -> None:
     cols = st.columns(4)
 
     with cols[0]:
-        selected_pkl = st.selectbox(
+        selected_tournament = st.selectbox(
             "Turnier auswählen",
             options=["-- keine Auswahl --"] + options,
             index=0,
-            format_func=lambda x: x if isinstance(x, str) else display_name(x),
             key="select_tournament"
         )
 
-        st.session_state["selected_pkl"] = selected_pkl
+        st.session_state["selected_tournament"] = selected_tournament
 
     with cols[1]:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🔄 Zurücksetzen", key="reset_button"):
-            selected_pkl = st.session_state["selected_pkl"]
-            saved_tournament = load_pickle(selected_pkl)
+            selected_tournament = st.session_state["selected_tournament"]
+            saved_tournament = load_tournament(selected_tournament)
 
             if saved_tournament is None:
                 st.error("❌ Fehler beim Neuladen der Datei.")
             else:
-                load_savestates(saved_tournament, selected_pkl)
+                load_savestates(saved_tournament, selected_tournament)
 
     initialize_tournament()
 
