@@ -1,11 +1,12 @@
+# ui/tab_group_stage.py
 from pathlib import Path
 from typing import List
 import streamlit as st
 import pandas as pd
 
-from config import ui_modus, format_modus
+from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
 from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
-from core.models import Group, Tournament, StageID
+from core.models import Group, Tournament, StageID, MatchStatus
 from db import load_tournament, get_all_tournament_names
 from utils import export_stage
 
@@ -21,17 +22,15 @@ def _match_to_simple_row(match):
 
 
 def display_name(p: Path) -> str:
-    """ Wandelt den Pickle Pfad in den lesbaren Namen um."""
+    """Wandelt den Pickle-Pfad in den lesbaren Namen um."""
     stem = p.stem.capitalize()
     return stem.replace("_", " ")
 
 
 def highlight_team(selected_team, group: Group) -> None:
-    """ Highlight the selected team in the text."""
+    """Highlight das ausgewählte Team in der Liste."""
     if selected_team:
-        # Liste der Teams als Strings
         team_list = [str(t) for t in group.teams]
-        # Markiere das ausgewählte Team
         highlighted_teams = [
             f'<span style="background-color: {HIGHLIGHT_COLOR}; padding: 0.1em 0.3em; border-radius: 4px; font-weight: bold;">{t}</span>'
             if t == selected_team else t
@@ -44,15 +43,13 @@ def highlight_team(selected_team, group: Group) -> None:
 
 
 def highlight_team_in_schedule(row):
-    """ Highlight the selected team in the table."""
+    """Highlight das ausgewählte Team in der Tabelle."""
     selected_team = st.session_state.get("selected_team")
     if selected_team is None:
         return [""] * len(row)
 
     styles = []
-
     for col_name, value in row.items():
-        # Prüfen, ob die aktuelle Zelle das gesuchte Team enthält
         if value == selected_team and col_name in ["Team 1", "Team 2"]:
             styles.append(f"background-color: {HIGHLIGHT_COLOR}; color: #000000; font-weight: bold")
         else:
@@ -61,45 +58,38 @@ def highlight_team_in_schedule(row):
 
 
 def _display_group_info(group, col):
-    """
-    Zeigt in der übergebenen Streamlit-Spalte (col) die Basis-Infos einer Gruppe an.
-    Modus, Punkte und Tiebreak werden in einer Zeile nebeneinander angezeigt.
-    """
+    """Zeigt Modus, Punkte und Tiebreak in einer Zeile an."""
     modus_ui = ui_modus(group.settings.modus)
-
     modus = format_modus(
         modus_ui=modus_ui,
         pts=group.settings.points,
         tiebreak=group.settings.tiebreak
     )
-
     st.markdown(f"**Modus: {modus}**")
 
+
 def load_savestates(saved_tournament: Tournament, selected_tournament: str):
-    """Lädt die Pickle-Datei und legt die Savestates an."""
+    """Lädt die Savestates."""
     groups_list = next(iter(saved_tournament.stages.values())).groups
     st.session_state["groups"] = {g.name: g for g in groups_list}
     st.session_state["tournament"] = saved_tournament
     st.session_state["tournament_loaded"] = True
-    st.session_state["last_selected_tournament"] = selected_tournament  # Speichere letzte Auswahl
+    st.session_state["last_selected_tournament"] = selected_tournament
+
 
 def initialize_tournament():
     """Lädt das ausgewählte Turnier, nur wenn sich die Auswahl geändert hat."""
     selected_tournament = st.session_state.get("selected_tournament")
 
-    # Wenn bereits geladen und die Auswahl gleich bleibt → überspringen
     if st.session_state.get("tournament_loaded") and st.session_state.get("last_selected_tournament") == selected_tournament:
         return
 
-    # Wenn keine Auswahl → zurück
     if selected_tournament is None or selected_tournament == "-- keine Auswahl --":
         st.session_state["tournament_loaded"] = False
         st.session_state["groups"] = {}
         st.session_state["tournament"] = None
         return
 
-    # Lade die Datei
-    # options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
     options = get_all_tournament_names()
     if selected_tournament not in options:
         st.session_state["tournament_loaded"] = False
@@ -107,9 +97,7 @@ def initialize_tournament():
         st.session_state["tournament"] = None
         return
 
-    # saved_tournament = load_pickle(selected_tournament)
     saved_tournament = load_tournament(selected_tournament)
-
 
     if saved_tournament is None:
         st.error("❗ Das Turnier konnte nicht geladen werden. Bitte prüfe die Datei.")
@@ -187,140 +175,429 @@ def plot_schedule(group: Group, selected_team: str):
         st.info("Noch keine Spielpaarungen erzeugt.")
 
 
-def tab_group_stage() -> None:
-    st.header("🆕 Überblick Vorrunde")
-    options = get_all_tournament_names()
+def tab_group_stage():
+    st.header("🆕 Vorrunde")
 
-    if not options:
-        st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Turnier einrichten“).")
-        return
+    # ✅ Neue Tabs innerhalb von "Vorrunde"
+    tabs = st.tabs(["📋 Übersicht", "📊 Ergebnisse", "📋 Zusammenfassung"])
 
-    cols = st.columns(4)
+    with tabs[0]:
+        # --- Übersicht ---
+        options = get_all_tournament_names()
 
-    with cols[0]:
-        selected_tournament = st.selectbox(
-            "Turnier auswählen",
-            options=["-- keine Auswahl --"] + options,
-            index=0,
-            key="select_tournament"
-        )
+        if not options:
+            st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Neues Turnier“).")
+            return
 
-        st.session_state["selected_tournament"] = selected_tournament
-
-    with cols[1]:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Zurücksetzen", key="reset_button"):
-            selected_tournament = st.session_state["selected_tournament"]
-            saved_tournament = load_tournament(selected_tournament)
-
-            if saved_tournament is None:
-                st.error("❌ Fehler beim Neuladen der Datei.")
-            else:
-                load_savestates(saved_tournament, selected_tournament)
-
-    initialize_tournament()
-
-    if not st.session_state.get("tournament_loaded"):
-        st.info("Kein Turnier geladen.")
-        return
-
-    group_names = list(st.session_state["groups"].keys())
-    all_teams = set()
-    for group in st.session_state["groups"].values():
-        for team in group.teams:
-            all_teams.add(str(team))
-
-    cols = st.columns(4)
-
-    with cols[0]:
-        team_a = st.selectbox(
-            "Team A",
-            options=["-- wähle Team A --"] + sorted(all_teams),
-            key="team_a"
-        )
-
-        selected_team = st.selectbox(
-            "Team auswählen (für Hervorhebung)",
-            options=["-- keine Auswahl --"] + sorted(all_teams),
-            index=0,
-            key="team_selector"
-        )
-
-    if selected_team != "-- keine Auswahl --":
-        st.session_state["selected_team"] = selected_team
-    else:
-        st.session_state["selected_team"] = None
-
-    with cols[1]:
-        team_b = st.selectbox(
-            "Team B",
-            options=["-- wähle Team B --"] + sorted(all_teams),
-            key="team_b"
-        )
-
-        delayed_teams = st.multiselect(
-            "Welche Teams kommen später?",
-            options=sorted(all_teams),
-            key="team_delayed",
-            placeholder="Bitte verspätete Teams auswählen …"
-        )
-
-    with cols[2]:
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        if st.button("Teams tauschen", key="swap_button"):
-            if team_a == "-- wähle Team A --" or team_b == "-- wähle Team B --":
-                st.warning("Bitte wähle beide Teams aus.")
-                st.stop()
-            if team_a == team_b:
-                st.warning("Beide Teams sind gleich. Kein Tausch möglich.")
-                st.stop()
-
-            trade_teams(team_a, team_b)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        if st.button("Verspätete Teams", key="delay_button"):
-            if delayed_teams:
-                delay_teams(delayed_teams)
-
-    # Zeige Gruppen an
-    for i in range(0, len(group_names), 2):
-        cols = st.columns(2)
-
-        grp_name_1 = group_names[i]
-        grp_1 = st.session_state["groups"][grp_name_1]
+        cols = st.columns(4)
 
         with cols[0]:
-            if grp_1.assigned_courts:
-                st.subheader(f"🟦 Gruppe {grp_name_1} Feld {', '.join(map(str, grp_1.assigned_courts))}")
-            else:
-                st.markdown(f"🟦 Gruppe {grp_name_1} noch kein Feld zugewiesen")
+            selected_tournament = st.selectbox(
+                "Turnier auswählen",
+                options=["-- keine Auswahl --"] + options,
+                index=0,
+                key="select_tournament"
+            )
+            st.session_state["selected_tournament"] = selected_tournament
 
-            _display_group_info(grp_1, cols[0])
+        with cols[1]:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🔄 Zurücksetzen", key="reset_button"):
+                selected_tournament = st.session_state["selected_tournament"]
+                saved_tournament = load_tournament(selected_tournament)
 
-            plot_schedule(grp_1, selected_team)
-
-        if i + 1 < len(group_names):
-            grp_name_2 = group_names[i + 1]
-            grp_2 = st.session_state["groups"][grp_name_2]
-
-            with cols[1]:
-                if grp_2.assigned_courts:
-                    st.subheader(f"🟦 Gruppe {grp_name_2} Feld {', '.join(map(str, grp_2.assigned_courts))}")
+                if saved_tournament is None:
+                    st.error("❌ Fehler beim Neuladen der Datei.")
                 else:
-                    st.markdown(f"🟦 Gruppe {grp_name_2} noch kein Feld zugewiesen")
+                    load_savestates(saved_tournament, selected_tournament)
 
-                _display_group_info(grp_2, cols[1])
+        initialize_tournament()
 
-                plot_schedule(grp_2, selected_team)
+        if not st.session_state.get("tournament_loaded"):
+            st.info("Kein Turnier geladen.")
+            return
+
+        group_names = list(st.session_state["groups"].keys())
+        all_teams = set()
+        for group in st.session_state["groups"].values():
+            for team in group.teams:
+                all_teams.add(str(team))
+
+        cols = st.columns(4)
+
+        with cols[0]:
+            team_a = st.selectbox(
+                "Team A",
+                options=["-- wähle Team A --"] + sorted(all_teams),
+                key="team_a"
+            )
+
+            selected_team = st.selectbox(
+                "Team auswählen (für Hervorhebung)",
+                options=["-- keine Auswahl --"] + sorted(all_teams),
+                index=0,
+                key="team_selector"
+            )
+
+        if selected_team != "-- keine Auswahl --":
+            st.session_state["selected_team"] = selected_team
         else:
-            with cols[1]:
-                st.empty()
+            st.session_state["selected_team"] = None
 
-    if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
-        stage_name = NAME_PREROUND
-        export_stage(tournament=st.session_state["tournament"], stage_id=stage_name)
-        stage = stage_name.lower().replace(" ", "_")
-        path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower() / stage
-        st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
+        with cols[1]:
+            team_b = st.selectbox(
+                "Team B",
+                options=["-- wähle Team B --"] + sorted(all_teams),
+                key="team_b"
+            )
+
+            delayed_teams = st.multiselect(
+                "Welche Teams kommen später?",
+                options=sorted(all_teams),
+                key="team_delayed",
+                placeholder="Bitte verspätete Teams auswählen …"
+            )
+
+        with cols[2]:
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if st.button("Teams tauschen", key="swap_button"):
+                if team_a == "-- wähle Team A --" or team_b == "-- wähle Team B --":
+                    st.warning("Bitte wähle beide Teams aus.")
+                    st.stop()
+                if team_a == team_b:
+                    st.warning("Beide Teams sind gleich. Kein Tausch möglich.")
+                    st.stop()
+
+                trade_teams(team_a, team_b)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if st.button("Verspätete Teams", key="delay_button"):
+                if delayed_teams:
+                    delay_teams(delayed_teams)
+
+        # Zeige Gruppen an
+        for i in range(0, len(group_names), 2):
+            cols = st.columns(2)
+
+            grp_name_1 = group_names[i]
+            grp_1 = st.session_state["groups"][grp_name_1]
+
+            with cols[0]:
+                if grp_1.assigned_courts:
+                    st.subheader(f"🟦 Gruppe {grp_name_1} Feld {', '.join(map(str, grp_1.assigned_courts))}")
+                else:
+                    st.markdown(f"🟦 Gruppe {grp_name_1} noch kein Feld zugewiesen")
+
+                _display_group_info(grp_1, cols[0])
+
+                plot_schedule(grp_1, selected_team)
+
+            if i + 1 < len(group_names):
+                grp_name_2 = group_names[i + 1]
+                grp_2 = st.session_state["groups"][grp_name_2]
+
+                with cols[1]:
+                    if grp_2.assigned_courts:
+                        st.subheader(f"🟦 Gruppe {grp_name_2} Feld {', '.join(map(str, grp_2.assigned_courts))}")
+                    else:
+                        st.markdown(f"🟦 Gruppe {grp_name_2} noch kein Feld zugewiesen")
+
+                    _display_group_info(grp_2, cols[1])
+
+                    plot_schedule(grp_2, selected_team)
+            else:
+                with cols[1]:
+                    st.empty()
+
+        if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
+            stage_name = NAME_PREROUND
+            export_stage(tournament=st.session_state["tournament"], stage_id=stage_name)
+            stage = stage_name.lower().replace(" ", "_")
+            path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower() / stage
+            st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
+
+    with tabs[1]:
+        # -------------------------------------------------
+        # Ergebnisse eingeben
+        # -------------------------------------------------
+        st.header("📊 Ergebnisse eingeben")
+        st.markdown("Noch nicht fertig. Geduldet euch.")
+
+        if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
+            st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
+            st.stop()
+
+        tournament = st.session_state["tournament"]
+        stage = next(iter(tournament.stages.values()))
+        groups = stage.groups  # → List[Group]
+
+        # Gruppen paarweise nebeneinander darstellen
+        for i in range(0, len(groups), 2):
+            cols = st.columns(2)
+
+            if i < len(groups):
+                group_1 = groups[i]
+                group_name_1 = group_1.name
+
+                with cols[0]:
+                    with st.expander(f"🟦 Gruppe {group_name_1}", expanded=True):
+                        if not group_1.match_list:
+                            st.info("Keine Spiele generiert.")
+                        else:
+                            # Anzahl der Sätze
+                            sets = MATCH_MODE_TO_SETS.get(group_1.settings.modus, ["1. Satz"])
+                            num_sets = len(sets)
+
+                            # Platzverteilung für die Header
+                            header_c1, header_c2, header_c3, header_c4 = st.columns([20, 10, 20, 50])
+                            with header_c4:
+                                widths = []
+                                for _ in range(num_sets):
+                                    widths.extend([1, 0.2, 1])
+                                hdr_cols = st.columns(widths)
+
+                                for j in range(num_sets):
+                                    left = hdr_cols[j * 3]
+                                    left.markdown(f"**Satz {j + 1}**",
+                                                  unsafe_allow_html=True)
+
+                            for match in group_1.match_list:
+                                # Platzverhältnisse der Teams zu den Punkten
+                                col1, col2, col3, col4 = st.columns([20, 10, 20, 50])
+
+                                with col1:
+                                    st.markdown(
+                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t1}</strong></div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                with col2:
+                                    st.markdown(
+                                        "<div style='display:flex; align-items:center; height:38px;'>vs.</div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                with col3:
+                                    st.markdown(
+                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t2}</strong></div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                with col4:
+                                    widths = []
+                                    for _ in range(num_sets):
+                                        widths.extend([1, 0.2, 1])
+                                    set_cols = st.columns(widths)
+
+                                    scores = []
+                                    for j in range(num_sets):
+                                        key_a = f"set_{match.id}_a{j}"
+                                        key_b = f"set_{match.id}_b{j}"
+
+                                        default_a = default_b = ""
+                                        if match.sets and j < len(match.sets):
+                                            default_a = str(match.sets[j][0])
+                                            default_b = str(match.sets[j][1])
+
+                                        with set_cols[j * 3]:
+                                            p1 = st.number_input(
+                                                f"Satz {j + 1}",
+                                                min_value=0,
+                                                max_value=99,
+                                                value=int(default_a) if default_a else 0,
+                                                step=1,
+                                                key=key_a,
+                                                label_visibility="collapsed",
+                                                format="%d",
+                                            )
+
+                                        with set_cols[j * 3 + 1]:
+                                            st.markdown(
+                                                "<div style='text-align:center; font-weight:bold;'>:</div>",
+                                                unsafe_allow_html=True,
+                                            )
+
+                                        with set_cols[j * 3 + 2]:
+                                            p2 = st.number_input(
+                                                f"Satz {j + 1}",
+                                                min_value=0,
+                                                max_value=99,
+                                                value=int(default_b) if default_b else 0,
+                                                step=1,
+                                                key=key_b,
+                                                label_visibility="collapsed",
+                                                format="%d",
+                                            )
+                                        scores.append((p1, p2))
+
+                                    # ---- Wenn mindestens ein Punkt pro Satz eingegeben wurde ----
+                                    if all(p1 > 0 or p2 > 0 for p1, p2 in scores):
+                                        try:
+                                            if match.status == MatchStatus.FINISHED:
+                                                st.warning(f"✅ Match {match.id} ist bereits beendet.")
+                                            else:
+                                                for p1, p2 in scores:
+                                                    if p1 > 0 or p2 > 0:
+                                                        match.add_set(p1, p2)
+                                                st.success(f"✅ Alle Sätze hinzugefügt.")
+                                        except ValueError:
+                                            st.error("❌ Ungültige Punktzahl – bitte Zahlen eingeben.")
+
+                            # ---- BUTTON: Ergebnisse dieser Gruppe speichern -----------------
+                            if st.button(f"✅ Ergebnisse für Gruppe {group_name_1} speichern",
+                                         key=f"save_group_{group_name_1}"):
+                                # Wir gehen alle Matches der Gruppe durch und setzen den Status
+                                for match in group_1.match_list:
+                                    if match.status != MatchStatus.FINISHED:
+                                        # Wenn noch nicht fertig, prüfen, ob genug Sätze vorhanden sind
+                                        if len(match.sets) == num_sets:
+                                            match.status = MatchStatus.FINISHED
+                                st.success(f"✅ Ergebnisse für Gruppe {group_name_1} wurden gespeichert.")
+                                st.rerun()  # UI aktualisieren
+
+            # -------------------------------------------------
+            # ==== GRUPPE 2 =========================================================
+            # -------------------------------------------------
+            if i + 1 < len(groups):
+                group_2 = groups[i + 1]
+                group_name_2 = group_2.name
+
+                with cols[1]:
+                    with st.expander(f"🟦 Gruppe {group_name_2}", expanded=True):
+                        if not group_2.match_list:
+                            st.info("Keine Spiele generiert.")
+                        else:
+                            sets = MATCH_MODE_TO_SETS.get(group_2.settings.modus, ["1. Satz"])
+                            num_sets = len(sets)
+
+                            header_c1, header_c2, header_c3, header_c4 = st.columns([20, 10, 20, 50])
+                            with header_c4:
+                                widths = []
+                                for _ in range(num_sets):
+                                    widths.extend([1, 0.2, 1])
+                                hdr_cols = st.columns(widths)
+
+                                for j in range(num_sets):
+                                    left = hdr_cols[j * 3]
+                                    left.markdown(f"**Satz {j + 1}**",
+                                                  unsafe_allow_html=True)
+
+                            for match in group_2.match_list:
+                                col1, col2, col3, col4 = st.columns([20, 10, 20, 50])
+
+                                with col1:
+                                    st.markdown(
+                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t1}</strong></div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                with col2:
+                                    st.markdown(
+                                        "<div style='display:flex; align-items:center; height:38px;'>vs.</div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                with col3:
+                                    st.markdown(
+                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t2}</strong></div>",
+                                        unsafe_allow_html=True,
+                                    )
+                                with col4:
+                                    widths = []
+                                    for _ in range(num_sets):
+                                        widths.extend([1, 0.2, 1])
+                                    set_cols = st.columns(widths)
+
+                                    scores = []
+                                    for j in range(num_sets):
+                                        key_a = f"set_{match.id}_a{j}"
+                                        key_b = f"set_{match.id}_b{j}"
+
+                                        default_a = default_b = ""
+                                        if match.sets and j < len(match.sets):
+                                            default_a = str(match.sets[j][0])
+                                            default_b = str(match.sets[j][1])
+
+                                        with set_cols[j * 3]:
+                                            p1 = st.number_input(
+                                                f"Satz {j + 1}",
+                                                min_value=0,
+                                                max_value=99,
+                                                value=int(default_a) if default_a else 0,
+                                                step=1,
+                                                key=key_a,
+                                                label_visibility="collapsed",
+                                                format="%d",
+                                            )
+                                        with set_cols[j * 3 + 1]:
+                                            st.markdown(
+                                                "<div style='text-align:center; font-weight:bold;'>:</div>",
+                                                unsafe_allow_html=True,
+                                            )
+                                        with set_cols[j * 3 + 2]:
+                                            p2 = st.number_input(
+                                                f"Satz {j + 1}",
+                                                min_value=0,
+                                                max_value=99,
+                                                value=int(default_b) if default_b else 0,
+                                                step=1,
+                                                key=key_b,
+                                                label_visibility="collapsed",
+                                                format="%d",
+                                            )
+                                        scores.append((p1, p2))
+
+                                    if all(p1 > 0 or p2 > 0 for p1, p2 in scores):
+                                        try:
+                                            if match.status == MatchStatus.FINISHED:
+                                                st.warning(f"✅ Match {match.id} ist bereits beendet.")
+                                            else:
+                                                for p1, p2 in scores:
+                                                    if p1 > 0 or p2 > 0:
+                                                        match.add_set(p1, p2)
+                                                st.success(f"✅ Alle Sätze hinzugefügt.")
+                                        except ValueError:
+                                            st.error("❌ Ungültige Punktzahl – bitte Zahlen eingeben.")
+
+                            if st.button(f"✅ Ergebnisse für Gruppe {group_name_2} speichern",
+                                         key=f"save_group_{group_name_2}"):
+                                for match in group_2.match_list:
+                                    if match.status != MatchStatus.FINISHED:
+                                        if len(match.sets) == num_sets:
+                                            match.status = MatchStatus.FINISHED
+                                st.success(f"✅ Ergebnisse für Gruppe {group_name_2} wurden gespeichert.")
+                                st.rerun()
+
+            st.markdown("---")
+
+    with tabs[2]:
+        # --- Zusammenfassung ---
+        st.header("📋 Zusammenfassung")
+
+        st.markdown("Geduldet euch ist doch schon in Arbeit.")
+
+        # if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
+        #     st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
+        #     return
+        #
+        # tournament = st.session_state["tournament"]
+        # stage = next(iter(tournament.stages.values()))
+        # groups = stage.groups
+        #
+        # # Rangliste berechnen
+        # ranking = calculate_ranking(groups)
+        #
+        # st.subheader("🏆 Rangliste")
+        # df = pd.DataFrame(ranking)
+        # st.dataframe(df, hide_index=True)
+        #
+        # st.subheader("📊 Statistiken")
+        # total_matches = sum(len(group.match_list) for group in groups.values())
+        # st.metric("Gesamtanzahl Spiele", total_matches)
+        #
+        # # Teams mit den meisten Sätzen
+        # max_sets = max(r["Sätze"] for r in ranking)
+        # top_teams = [r["Team"] for r in ranking if r["Sätze"] == max_sets]
+        # st.metric("Team mit meisten Sätzen", ", ".join(top_teams))
+        #
+        # # Teams mit besten Punktdifferenz
+        # max_diff = max(r["Punktdifferenz"] for r in ranking)
+        # top_diff = [r["Team"] for r in ranking if r["Punktdifferenz"] == max_diff]
+        # st.metric("Beste Punktdifferenz", ", ".join(top_diff))
