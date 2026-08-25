@@ -1,133 +1,145 @@
-# 🏐 Travemünder Beach Open - Turnierauswertung
+# 🏐 Travemünder Beach Open – Turnierauswertung
 
 ---
 
-[[_TOC_]]
+## Inhaltsverzeichnis
+
+- [Features](#features)
+- [Voraussetzungen](#voraussetzungen)
+- [Einrichten der App](#einrichten-der-app)
+- [Starten der App](#starten-der-app)
+- [Unterstützt von](#unterstützt-von)
+- [Inspiration](#inspiration)
+- [Lizenz](#lizenz)
 
 ---
 
-Eine interaktive, leichtgewichtige Web-Applikation zur Auswertung und Verwaltung der **Travemünder Beach Open** (TGR Rangenberg).  
-Die App ist mit **Python** und **Streamlit** entwickelt und erfordert keine komplexe Datenbank – alle Daten werden lokal gespeichert.  
-Das Projekt befindet sich in der Entwicklung und ist noch unvollständig.
+Eine interaktive, leichtgewichtige Web-Anwendung zur Auswertung und Verwaltung der **Travemünder Beach Open** (TGR Rangenberg).  
+Entwickelt mit **Python** und **Streamlit**, erfordert keine externe Datenbank – alle Daten werden lokal gespeichert.  
+Das Projekt befindet sich in der Entwicklung und ist noch nicht vollständig abgeschlossen.
 
 ---
 
 ## Features
 
-- **Turnierkonfiguration**:  
-  Definieren von Turniertypen mit Spieltag, Netzhöhe und verfügbaren Feldern.
+### Turnierkonfiguration
+- Definieren von Turniertypen (z. B. Damen, Herren, Quattro) mit:
+  - Spieltag
+  - Netzhöhe
+  - Anzahl verfügbarer Felder
 
-- **Neues Turnier**:  
-  - Einlesen der Anmeldedaten aus CSV/XLSX  
-  - Auswahl des Turniertyps (Damen, Herren, Quattro, etc.)  
-  - Bearbeitung der Teilnehmerliste  
-  - Erstellen der Gruppen:  
-    - Anzahl der Gruppen festlegen  
-    - Gruppenköpfe auswählen  
-    - Teams aus demselben Verein werden, wenn möglich, in verschiedene Gruppen aufgeteilt  
-    - Automatische Zuweisung der Felder zu den Gruppen  
-  - Einstellung des Spielmodus für vollständige und unvollständige Gruppen
+### Neues Turnier
+- **Anmeldedaten importieren** aus CSV oder XLSX
+- Auswahl des Turniertyps
+- Bearbeitung der Teilnehmerliste (Hinzufügen, Löschen, Ändern)
+- **Automatische Gruppenbildung**:
+  - Festlegung der Anzahl der Gruppen
+  - Auswahl der Gruppenköpfe
+  - Vereinsbasierte Verteilung: Teams aus demselben Verein werden, soweit möglich, in verschiedene Gruppen aufgeteilt
+  - Automatische Zuweisung von Feldern zu Gruppen
+- Einstellung des Spielmodus für vollständige und unvollständige Gruppen
 
-- **Vorrunde**:  
-  - Teams können nachträglich angepasst werden  
-  - Verspätete Teams erhalten spätere Spielzeiten  
-  - Generieren von Spielprotokollen (HTML)
+### Vorrunde
+- Nachträgliche Anpassung von Teams
+- Berücksichtigung verspäteter Teams (spätere Spielzeiten)
+- Generierung von Spielprotokollen im HTML-Format (für Druck oder Weitergabe)
 
-- **Automatische Rangliste**:  
-  Genau nach offiziellen Volleyball-Regeln berechnet:  
-  1. Gewonnene Sätze (Punkte)  
-  2. Direkter Vergleich (bei Punktegleichstand)  
-  3. Punktdifferenz (alle erzielten Ballpunkte)
-
----
-
-## Setup
-
-Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind. Die folgenden ANleitung ist für Windows PCs geschrieben.
-
-Wenn Python bereits installiert ist, kannst du [hier](#herunterladen-des-repositorys) weitermachen.
+### Automatische Rangliste
+Genau nach offiziellen Volleyball-Regeln berechnet:
+1. Gewonnene Sätze (Punkte)
+2. Direkter Vergleich (bei Punktegleichstand)
+3. Punktdifferenz (alle erzielten Ballpunkte)
 
 ---
 
-###  **Installation von Python 3.13**
+## Voraussetzungen
+
+Dieses Projekt erfordert **Python 3.13** (oder höher), da es moderne Sprachfeatures und Bibliotheken nutzt, die in älteren Versionen nicht verfügbar sind.  
+Die folgende Anleitung ist für Windows-Systeme optimiert.
+
+> ✅ Wenn Python bereits installiert ist, kannst du direkt mit [Herunterladen des Repositorys](#herunterladen-des-repositorys) fortfahren.
+
+---
+
+### Installation von Python 3.13
 
 1. Gehe zu: [https://www.python.org/downloads/](https://www.python.org/downloads/)
-    - Direkter Link zu [Python 3.13](https://www.python.org/downloads/release/python-31315/)
-2. Lade die **Python 3.13.x**-Version herunter (z. B. `Windows installer (64-bit)` – Datei: `python-3.13.15-amd64.exe`)
-    - Der **Windows Download Python Installer Manager** ist nicht notwendig.
-3. Führe die Installation aus und **markiere die Option**:
+   - Direkter Link zu [Python 3.13.15](https://www.python.org/downloads/release/python-31315/)
+2. Lade die **Windows-Installer (64-Bit)** herunter (z. B. `python-3.13.15-amd64.exe`)
+3. Führe die Installation aus und **aktiviere die Option**:
    ```
    ✅ Add Python to PATH
    ```
-4. Öffne ein neues Terminal (PowerShell oder CMD) und prüfe:
+4. Öffne ein neues Terminal (PowerShell oder CMD) und prüfe die Installation:
    ```bash
    python --version
    ```
+   → Sollte `Python 3.13.15` oder höher anzeigen.
 
 ---
 
-## Herunterladen des Repositorys
+### Herunterladen des Repositorys
 
-Es gibt nun 2 Möglichkeiten das Projekt lokal zu speichern. Entweder mn installiert `git` oder lädt die Daten manuell als Zip-Datei von der Github-Seite herunter. 
+Es gibt zwei Möglichkeiten, das Projekt lokal zu erhalten: **Git-Klonen** oder **ZIP-Download**.
+Für das **Git-Klonen** ist eine weitere Installation notwendig.
 
-#### Methode 1 Projekt über Git klonen
-Um das Projekt über `git` zu klonen, musst du **Git** installieren:
+---
 
-- Lade Git von [https://git-scm.com/download/win](https://git-scm.com/download/win) herunter.
-- Führe die Installation aus und wähle **"Use Git and optional Unix tools from the Command Prompt"**.
+#### Methode 1: Projekt über Git klonen
 
+1. Installiere **Git** von [https://git-scm.com/download/win](https://git-scm.com/download/win)
+2. Wähle bei der Installation:
+   - ✅ *Use Git and optional Unix tools from the Command Prompt*
+3. Öffne ein Terminal und teste die Installation:
+   ```bash
+   git --version
+   ```
 
-> ✅ Nach der Installation kannst du `git --version` in dem Terminal testen.
+> **Tipp:** Öffne den Datei-Explorer, gehe in dein gewünschtes Projektverzeichnis und klicke mit der rechten Maustaste → „In Terminal öffnen“.
 
-Terminal-Shell öffnen
-Öffne den Datei-Explorer und gehe in ein Verzeichnis, wo du die Projektdaten speichern möchtest.
-Klicke mit der rechten Maustaste in dem Ordner auf eine leere Stelle und wähle „In Terminal öffnen“ aus dem Menü.
-Führe anschließen die folgenden Befehle in dem Terminal nacheinander aus.
+Führe die folgenden Befehle aus:
 
-Repository klonen:
 ```bash
 git clone https://github.com/johannhein/tbo.git
 cd tbo
 ```
 
-[Hier gehts dann weiter.](#installation-des-tools)
+[Weiter mit: Einrichten der App](#einrichten-der-app)
 
-### Methode 2: ZIP-Download (ohne Git)
+---
 
-Wenn du Git nicht installieren möchtest, kannst du das Projekt einfach als ZIP-Datei herunterladen:
+#### Methode 2: ZIP-Download (ohne Git)
+
+Wenn du Git nicht installieren möchtest:
 
 1. Gehe zu: [https://github.com/johannhein/tbo](https://github.com/johannhein/tbo)
-2. Klicke auf den **"Code"-Button** (oben rechts).
-3. Wähle **"Download ZIP"** aus.
-4. Entpacke die ZIP-Datei an einem beliebigen Ort wo das Tool später gespeichert werden soll.
-5. Die Struktur sollte nun in deinem Verzeichnis wie folgt aussehen:
-    ```
-    tbo-main/
-    └── tbo-main/
-        ├── .streamlit/
-        ├── assets/
-        ├── data/
-        │   ├── ...
-        ├── src/
-        │   ├── ...
-        └── ...
-    ```
-6. Lösche den obersten Ordner und nenne den anderen Ordner `tbo-main` in `tbo` um. Sodass es nun wie folgt aussieht:
-    ```
-    tbo/
-    ├── .streamlit/
-    ├── assets/
-    ├── data/
-    │   ├── ...
-    ├── src/
-    │   ├── ...
-    └── ...
-    ```
-7. Gehe in den Ordner `tbo`.
-8. Klicke mit der rechten Maustaste in dem Ordner auf eine leere Stelle und wähle „In Terminal öffnen“ aus dem Menü.
-Führe anschließen die folgenden Befehle in dem Terminal nacheinander aus.
+2. Klicke auf den **„Code“-Button** (oben rechts)
+3. Wähle **„Download ZIP“** aus
+4. Entpacke die ZIP-Datei an einem beliebigen Ort
+5. Die Ordnerstruktur sollte nun so aussehen:
+   ```
+   tbo-main/
+   └── tbo-main/
+       ├── .streamlit/
+       ├── assets/
+       ├── data/
+       ├── src/
+       └── ...
+   ```
+6. **Lösche den oberen Ordner `tbo-main`** und benenne den darin enthaltenen Ordner in `tbo` um:
+   ```
+   tbo/
+   ├── .streamlit/
+   ├── assets/
+   ├── data/
+   ├── src/
+   └── ...
+   ```
+7. Gehe in den Ordner `tbo` und öffne ein Terminal (rechte Maustaste → „In Terminal öffnen“).
 
-## Installation des Tools
+---
+
+## Einrichten der App
 
 1. Erstelle eine virtuelle Umgebung (empfohlen):
    ```bash
@@ -135,26 +147,26 @@ Führe anschließen die folgenden Befehle in dem Terminal nacheinander aus.
    ```
 
 2. Aktiviere die virtuelle Umgebung:
-     ```bash
-     .venv\Scripts\activate
-     ```
-   
-    ⚠️ Wenn in Windows eine Fehlermeldung kommt: Führe Folgendes aus und wiederhole anschließend den vorherigen Befehl nochmal:
+   ```bash
+   .venv\Scripts\activate
+   ```
 
-   ```powershell
+   ⚠️ **Falls ein Fehler erscheint** (z. B. „Execution Policy“), führe Folgendes aus und wiederhole den vorherigen Schritt:
+
+   ```bash
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
 
 3. Installiere die Abhängigkeiten:
    ```bash
-   pip install -e .
+   pip install .
    ```
 
 ---
 
-## 🚀 Getting Started
+## Starten der App
 
-Sobald die Installation abgeschlossen ist, kannst du die Applikation starten:
+Nach erfolgreicher Einrichtung kannst du die Anwendung starten:
 
 1. **App ausführen:**
    ```bash
@@ -162,14 +174,17 @@ Sobald die Installation abgeschlossen ist, kannst du die Applikation starten:
    ```
 
 2. **Im Browser öffnen:**  
-   Streamlit öffnet automatisch deinen Standard-Webbrowser unter:  
+   Streamlit öffnet automatisch deinen Standard-Webbrowser unter:
    → `http://localhost:8501`
 
 3. **Turnier starten:**  
-   - Navigiere durch die oberen Tabs: **Voreinstellungen**, **Neues Turnier**, **Vorrunde**.
+   Navigiere über die oberen Tabs:
+   - **Voreinstellungen**
+   - **Neues Turnier**
+   - **Vorrunde**
 
-4. **Beenden:**  
-   - Drücke `STRG + C` im Terminal, um die App zu stoppen.
+4. **Beenden der App:**  
+   Drücke `STRG + C` im Terminal, um die Anwendung zu stoppen.
 
 ---
 
@@ -179,15 +194,13 @@ Sobald die Installation abgeschlossen ist, kannst du die Applikation starten:
 
 ---
 
-## Inspiration & Attribution
+## Inspiration
 
-Dieses Projekt wurde inspiriert von:
-- [**sandly**](https://github.com/o3d1/sandly) – von o3d1
-
-Wir haben die Kernkonzepte übernommen und für das **Travemünder Beach Open** angepasst.
+DiGrundgerüst und die idee für die Umsetzung wurde übernommen und speziell für das **Travemünder Beach Open** angepasst und erweitert.
 
 ---
 
 ## Lizenz
 
-Dieses Projekt ist unter der [MIT-Lizenz](LICENSE) veröffentlicht.
+Dieses Projekt ist unter der [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) lizenziert.  
+Nutzung und Bearbeitung sind nur für **nicht-kommerzielle Zwecke** erlaubt – mit Namensnennung
