@@ -7,7 +7,7 @@ from config.constants import HIGHLIGHT_COLOR, PICKLE_DIR, EXPORT_DIR, NAME_PRERO
 from core.models import Group, Tournament
 from utils.export_schedule import export_stage
 from utils.mapping import ui_modus, format_modus
-from utils.path import list_files_with_suffix
+from utils.path import list_files_with_suffix, ensure_dir
 from utils.persistence import load_pickle
 
 
@@ -183,6 +183,7 @@ def plot_schedule(group: Group, selected_team: str):
 
 def tab_group_stage() -> None:
     st.header("🆕 Überblick Vorrunde")
+    ensure_dir(PICKLE_DIR)
     options = list_files_with_suffix(folder=PICKLE_DIR, suffix=".pkl")
 
     if not options:
