@@ -102,6 +102,23 @@ class Match:
             return "unentschieden"
         return None
 
+    @property
+    def points(self) -> Tuple[int, int] | None:
+        """
+        Gibt die Satz‑Bilanz als String zurück, z.B. "2,0".
+        Wenn noch keine Sätze gespeichert sind, wird "–" zurückgegeben.
+        """
+        if not self.sets:
+            return None
+
+        team1 = 0
+        team2 = 0
+
+        for p1, p2 in self.sets.values():
+            team1 += p1
+            team2 += p2
+        return team1, team2
+
     def _validate_set(self, set_num: int, p1: int, p2: int) -> None:
         """Prüft, ob ein einzelner Satz plausibel ist."""
         num_sets = len(MATCH_MODE_TO_SETS.get(self.settings.modus))
