@@ -8,7 +8,6 @@ from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
 from core.models import Group, Tournament, MatchStatus, Match
 from db import load_tournament, get_all_tournament_names
 from scoring import process_match_scores
-from scoring.ranking import render_group_table
 from utils import export_stage
 
 
@@ -49,7 +48,7 @@ def render_match_header(num_sets: int):
             left.markdown(f"**Satz {j + 1}**", unsafe_allow_html=True)
 
 
-def render_match_row(match: Match, num_sets: int, group: Group):
+def render_match_row(match: Match, num_sets: int):
     """Zeigt ein einzelnes Match mit Teams und Sätzen an."""
     # Platzverhältnisse
     col1, col2, col3, col4 = st.columns([20, 5, 20, 55])
@@ -101,7 +100,7 @@ def render_group_expander(group: Group):
         render_match_header(num_sets)
 
         for match in group.match_list:
-            render_match_row(match=match, num_sets=num_sets, group=group)
+            render_match_row(match=match, num_sets=num_sets)
 
         # Button: Ergebnisse speichern
         if st.button(f"✅ Ergebnisse für Gruppe {group.name} speichern", key=f"save_group_{group.name}"):
@@ -158,7 +157,7 @@ def highlight_team_in_schedule(row):
     return styles
 
 
-def _display_group_info(group, col):
+def _display_group_info(group: Group):
     """Zeigt Modus, Punkte und Tiebreak in einer Zeile an."""
     modus_ui = ui_modus(group.settings.modus)
     modus = format_modus(
@@ -391,7 +390,7 @@ def tab_group_stage():
                 else:
                     st.markdown(f"🟦 Gruppe {grp_name_1} noch kein Feld zugewiesen")
 
-                _display_group_info(grp_1, cols[0])
+                _display_group_info(grp_1)
 
                 plot_schedule(grp_1, selected_team)
 
@@ -405,7 +404,7 @@ def tab_group_stage():
                     else:
                         st.markdown(f"🟦 Gruppe {grp_name_2} noch kein Feld zugewiesen")
 
-                    _display_group_info(grp_2, cols[1])
+                    _display_group_info(grp_2)
 
                     plot_schedule(grp_2, selected_team)
             else:
@@ -443,36 +442,24 @@ def tab_group_stage():
             st.markdown("---")
 
     with tabs[2]:
-        # --- Zusammenfassung ---
-        st.header("📋 Zusammenfassung")
+        st.header("Platzierungsübersicht")
+        cols = st.columns(2)
+        stage = next(iter(tournament.stages.values()))
 
-        st.markdown("Geduldet euch ist doch schon in Arbeit.")
+        with cols[0]:
+            st.subheader(f"📋 Gesamttabelle: {stage.id}")
+            st.dataframe(
+                stage.table,
+                hide_index=True,
+                use_container_width=True,
+                height=1200,
+            )
 
-        # if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
-        #     st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
-        #     return
-        #
-        # tournament = st.session_state["tournament"]
-        # stage = next(iter(tournament.stages.values()))
-        # groups = stage.groups
-        #
-        # # Rangliste berechnen
-        # ranking = calculate_ranking(groups)
-        #
-        # st.subheader("🏆 Rangliste")
-        # df = pd.DataFrame(ranking)
-        # st.dataframe(df, hide_index=True)
-        #
-        # st.subheader("📊 Statistiken")
-        # total_matches = sum(len(group.match_list) for group in groups.values())
-        # st.metric("Gesamtanzahl Spiele", total_matches)
-        #
-        # # Teams mit den meisten Sätzen
-        # max_sets = max(r["Sätze"] for r in ranking)
-        # top_teams = [r["Team"] for r in ranking if r["Sätze"] == max_sets]
-        # st.metric("Team mit meisten Sätzen", ", ".join(top_teams))
-        #
-        # # Teams mit besten Punktdifferenz
-        # max_diff = max(r["Punktdifferenz"] for r in ranking)
-        # top_diff = [r["Team"] for r in ranking if r["Punktdifferenz"] == max_diff]
-        # st.metric("Beste Punktdifferenz", ", ".join(top_diff))
+        with cols[1]:
+            st.subheader("Platzierungstabellen")
+            for rank, table in stage.placement_tables.items():
+                st.markdown(f"### 🥇 Platzierung {rank}")
+                if table.empty:
+                    st.info("Keine Teams mit dieser Platzierung.")
+                else:
+                    st.dataframe(table, hide_index=True, width='content')

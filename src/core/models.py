@@ -155,11 +155,11 @@ class Match:
         if self.winner is not None:
             self.status = MatchStatus.FINISHED
 
-    def add_result(self, result: List[Tuple[int:int]]) -> None:
+    def add_result(self, result: Dict[int, Tuple[int:int]]) -> None:
         """Fügt einen neuen Satz zum Match hinzu und aktualisiert den Status."""
-        for set_score in result:
-            self._validate_set(set_score[0], set_score[0])
-            self.sets.append((set_score[0], set_score[0]))
+        for set_number, (player1_score, player2_score) in result.items():
+            self._validate_set(set_number, player1_score, player2_score)
+            self.sets[set_number] = (player1_score, player2_score)
 
         self.status = MatchStatus.FINISHED
 
@@ -227,6 +227,100 @@ class Stage:
     next_stages: List[StageID] = field(default_factory=list)  # IDs der nächsten Runden
     is_completed: bool = False
     results: Dict[str, Any] = field(default_factory=dict)  # z. B. Platzierungen, Gewinner
+
+    @property
+    def table(self) -> pd.DataFrame:
+        """
+        Erstellt eine Gesamttabelle für die Stage, sortiert nach:
+        1. Platzierung in der Gruppe
+        2. Punkte
+        3. Sätze-Differenz
+        4. Kleine Punkte
+        """
+        team_data = self._collect_team_data()
+        if not team_data:
+            return pd.DataFrame(columns=["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"])
+
+        df = pd.DataFrame(team_data)
+
+        def parse_sets(sets_str: str) -> int:
+            try:
+                won, lost = map(int, sets_str.split(":"))
+                return won - lost
+            except:
+                return 0
+
+        df["Sätze-Diff"] = df["Sätze"].apply(parse_sets)
+
+        # Sortieren: Platzierung → Punkte → Sätze-Diff → Kleine Punkte
+        df = df.sort_values(
+            by=["Platzierung", "Punkte", "Sätze-Diff", "Kleine Punkte"],
+            ascending=[True, False, False, False]
+        ).reset_index(drop=True)
+
+        # Rang neu setzen
+        df["Rang"] = range(1, len(df) + 1)
+
+        # Spaltenreihenfolge
+        return df[["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"]]
+
+    @property
+    def placement_tables(self) -> Dict[int, pd.DataFrame]:
+        """
+        Gibt ein Dictionary mit Tabellen für jede Platzierung zurück:
+        - key: Platzierung (1, 2, 3, ...)
+        - value: pd.DataFrame mit allen Teams, die diese Platzierung in ihrer Gruppe erreicht haben
+        """
+        team_data = self._collect_team_data()
+        if not team_data:
+            return {}
+
+        df = pd.DataFrame(team_data)
+
+        # Sortiere nach Platzierung
+        df = df.sort_values("Platzierung")
+
+        placement_tables = {}
+
+        # Für jede Platzierung
+        for rank in df["Platzierung"].unique():
+            subset = df[df["Platzierung"] == rank].copy()
+            subset = subset.sort_values(
+                by=["Punkte", "Sätze", "Kleine Punkte"],
+                ascending=[False, False, False]
+            ).reset_index(drop=True)
+
+            # Rang innerhalb der Platzierung neu setzen
+            subset["Rang"] = range(1, len(subset) + 1)
+
+            # Spaltenreihenfolge
+            subset = subset[["Rang", "Team", "Gruppe", "Punkte", "Sätze", "Kleine Punkte"]]
+
+            placement_tables[rank] = subset
+
+        return placement_tables
+
+    def _collect_team_data(self) -> List[Dict[str, Any]]:
+        """Sammelt alle Teams aus allen Gruppen mit ihren Statistiken."""
+        if not self.groups:
+            return []
+
+        all_teams = []
+
+        for group in self.groups:
+            group_table = group.table
+
+            for _, row in group_table.iterrows():
+                all_teams.append({
+                    "Team": row["Team"],
+                    "Gruppe": group.name,
+                    "Platzierung": row["Rang"],
+                    "Punkte": row["Punkte"],
+                    "Sätze": row["Sätze"],
+                    "Kleine Punkte": row["Kleine Punkte"],
+                })
+
+        return all_teams
 
     def add_team(self, team_name: str):
         if team_name not in self.teams:
