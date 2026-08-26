@@ -115,10 +115,10 @@ class Match:
             raise ValueError(f"Das Match hat maximal nur {str(num_sets)} Satz/Sätze.")
         if not self.settings.tiebreak or num_sets > set_num:
             if not (p1 >= self.settings.points or p2 >= self.settings.points):
-                raise ValueError(f"Kein Team hat die erforderlichen Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
+                raise ValueError(f"Kein Team hat die erforderlichen {self.settings.points} Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
         if self.settings.tiebreak and num_sets == set_num:
             if not (p1 >= self.settings.tiebreak or p2 >= self.settings.tiebreak):
-                raise ValueError(f"Kein Team hat die erforderlichen Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
+                raise ValueError(f"Kein Team hat die erforderlichen {self.settings.tiebreak} Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
 
 
     @classmethod
