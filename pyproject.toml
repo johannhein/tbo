@@ -43,4 +43,5 @@ include = [
     "utils*",
     "db*",
     "persistence*",
+    "scoring*"
 ]

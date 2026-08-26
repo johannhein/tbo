@@ -8,6 +8,7 @@ from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
 from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
 from core.models import Group, Tournament, StageID, MatchStatus, MatchMode
 from db import load_tournament, get_all_tournament_names
+from scoring import process_match_scores
 from utils import export_stage
 
 
@@ -452,45 +453,7 @@ def tab_group_stage():
                                                 )
                                         scores[j+1] = (p1, p2)
 
-                                    # prüft ob, alle ausreichend Punkte eingetragen wurden
-                                    if groups[i].settings.modus != MatchMode.BEST_OF_3 and groups[i].settings.modus != MatchMode.BEST_OF_5:
-                                        # Standard-Regel: Alle Sätze müssen ausgefüllt sein
-                                        if all(p1 and p2 for p1, p2 in scores.values()):
-                                            if all(p1 >= points or p2 >= points for p1, p2 in scores.values()):
-                                                print(f"test: {scores}")
-                                                try:
-                                                    for set_num, (p1, p2) in scores.items():
-                                                        print(f"Satz {set_num}: {p1}:{p2}")
-                                                        match.add_set(set_num, p1, p2)
-                                                except ValueError as e:
-                                                    print(f"Fehler bei Satz {set_num}: {e}")
-                                                    st.error(f"Fehler bei Satz {set_num}: {e}")
-                                    else:
-                                        # BEST_OF_3 oder BEST_OF_5 → Prüfe, ob Match beendet ist
-                                        is_best_of_3 = groups[i].settings.modus == MatchMode.BEST_OF_3
-
-                                        # Mindestanzahl an Sätzen, um zu gewinnen
-                                        min_sets_to_win = 2 if is_best_of_3 else 3
-
-                                        # Zähle Gewinnsätze
-                                        t1_won = sum(1 for p1, p2 in scores.values() if p1 > p2)
-                                        t2_won = sum(1 for p1, p2 in scores.values() if p2 > p1)
-
-                                        # Ist das Match beendet?
-                                        match_finished = t1_won >= min_sets_to_win or t2_won >= min_sets_to_win
-
-                                        # Wenn das Match beendet ist, prüfe, ob alle gespielten Sätze gültig sind
-                                        if match_finished:
-                                            try:
-                                                for set_num, (p1, p2) in scores.items():
-                                                    if p1 is not None and p2 is not None:
-                                                        if p1 != 0 and p2 != 0:
-                                                            print(f"Satz {set_num}: {p1}:{p2}")
-                                                            match.add_set(set_num, p1, p2)
-                                                            print(match.score_str)
-                                            except ValueError as e:
-                                                print(f"Fehler bei Satz {set_num}: {e}")
-                                                st.error(f"Fehler bei Satz {set_num}: {e}")
+                                    process_match_scores(match=match, scores=scores)
 
                             # ---- BUTTON: Ergebnisse dieser Gruppe speichern -----------------
                             if st.button(f"✅ Ergebnisse für Gruppe {groups[i].name} speichern",
