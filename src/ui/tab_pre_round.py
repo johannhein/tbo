@@ -1,4 +1,3 @@
-# ui/tab_group_stage.py
 from pathlib import Path
 from typing import List
 import streamlit as st
@@ -6,10 +5,111 @@ import pandas as pd
 
 from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
 from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
-from core.models import Group, Tournament, StageID, MatchStatus, MatchMode
+from core.models import Group, Tournament, MatchStatus, Match
 from db import load_tournament, get_all_tournament_names
 from scoring import process_match_scores
+from scoring.ranking import render_group_table
 from utils import export_stage
+
+
+def create_score_input(col: st.delta_generator.DeltaGenerator, default_pts: int | None, key: str, label: str = "", ) -> int:
+    """
+    Erstellt ein st.number_input für einen Punktestand.
+    Gibt den Wert zurück.
+    """
+    with col:
+        if default_pts is not None:
+            value = default_pts
+        else:
+            value = 0
+
+        return st.number_input(
+            label,
+            min_value=0,
+            max_value=99,
+            value=value,
+            step=1,
+            key=key,
+            label_visibility="collapsed",
+            format="%d",
+        )
+
+
+def render_match_header(num_sets: int):
+    """Zeigt die Satz-Header an."""
+    cols = st.columns([20, 5, 20, 55])
+    with cols[3]:
+        widths = []
+        for _ in range(num_sets):
+            widths.extend([1.5, 0.2, 0.5])
+        hdr_cols = st.columns(widths)
+
+        for j in range(num_sets):
+            left = hdr_cols[j * 3]
+            left.markdown(f"**Satz {j + 1}**", unsafe_allow_html=True)
+
+
+def render_match_row(match: Match, num_sets: int, group: Group):
+    """Zeigt ein einzelnes Match mit Teams und Sätzen an."""
+    # Platzverhältnisse
+    col1, col2, col3, col4 = st.columns([20, 5, 20, 55])
+
+    with col1:
+        st.markdown(f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t1}</strong></div>",
+                    unsafe_allow_html=True,)
+    with col2:
+        st.markdown("<div style='display:flex; align-items:center; height:38px;'>vs.</div>", unsafe_allow_html=True,)
+    with col3:
+        st.markdown(f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t2}</strong></div>",
+                    unsafe_allow_html=True,)
+    with col4:
+        widths = []
+        for _ in range(num_sets):
+            widths.extend([1, 0.2, 1])
+        set_cols = st.columns(widths)
+
+        scores = {}
+        for j in range(num_sets):
+            key_a = f"set_{match.id}_a{j}"
+            key_b = f"set_{match.id}_b{j}"
+
+            default_pts = None
+            if match.sets and j in match.sets:
+                default_pts = match.sets[j][0]
+
+            p1 = create_score_input(col=set_cols[j * 3], default_pts=default_pts, key=key_a, label=f"Satz {j + 1}")
+            with set_cols[j * 3 + 1]:
+                st.markdown("<div style='display:flex; align-items:center; height:38px;'><strong>:</strong></div>",
+                            unsafe_allow_html=True, )
+            p2 = create_score_input(col=set_cols[j * 3 + 2], default_pts=default_pts, key=key_b, label=f"Satz {j + 1}")
+
+            scores[j + 1] = (p1, p2)
+
+        process_match_scores(match=match, scores=scores,)
+
+
+def render_group_expander(group: Group):
+    """Zeigt die Gruppe mit Matches und Tabelle an."""
+    if not group.match_list:
+        st.info("Keine Spiele generiert.")
+        return
+
+    sets = MATCH_MODE_TO_SETS.get(group.settings.modus, ["1. Satz"])
+    num_sets = len(sets)
+
+    with st.expander(f"🟦 Gruppe {group.name}", expanded=False):
+        render_match_header(num_sets)
+
+        for match in group.match_list:
+            render_match_row(match=match, num_sets=num_sets, group=group)
+
+        # Button: Ergebnisse speichern
+        if st.button(f"✅ Ergebnisse für Gruppe {group.name} speichern", key=f"save_group_{group.name}"):
+            for match in group.match_list:
+                if match.status != MatchStatus.FINISHED:
+                    match.status = MatchStatus.FINISHED
+            st.success(f"✅ Ergebnisse für Gruppe {group.name} wurden gespeichert.")
+            st.rerun()
 
 
 def _match_to_simple_row(match):
@@ -320,9 +420,6 @@ def tab_group_stage():
             st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
 
     with tabs[1]:
-        # -------------------------------------------------
-        # Ergebnisse eingeben
-        # -------------------------------------------------
         st.header("📊 Ergebnisse eingeben")
         st.markdown("Noch nicht fertig. Geduldet euch.")
 
@@ -332,141 +429,16 @@ def tab_group_stage():
 
         tournament = st.session_state["tournament"]
         stage = next(iter(tournament.stages.values()))
-        groups = stage.groups  # → List[Group]
+        groups = stage.groups
 
         # Gruppen paarweise nebeneinander darstellen
         for i in range(len(groups)):
             cols = st.columns(2)
-
             if i < len(groups):
-
                 with cols[0]:
-                    with st.expander(f"🟦 Gruppe {groups[i].name}", expanded=False):
-                        if not groups[i].match_list:
-                            st.info("Keine Spiele generiert.")
-                        else:
-                            # Anzahl der Sätze
-                            sets = MATCH_MODE_TO_SETS.get(groups[i].settings.modus, ["1. Satz"])
-                            num_sets = len(sets)
-                            points = groups[i].settings.points
-                            if groups[i].settings.modus == MatchMode.BEST_OF_3 or groups[i].settings.modus == MatchMode.BEST_OF_5:
-                                tiebreak = groups[i].settings.tiebreak
-
-                            # Platzverteilung für die Header
-                            header_c1, header_c2, header_c3, header_c4 = st.columns([20, 5, 20, 55])
-                            with header_c4:
-                                widths = []
-                                for _ in range(num_sets):
-                                    widths.extend([1.5, 0.2, 0.5])
-                                hdr_cols = st.columns(widths)
-
-                                for j in range(num_sets):
-                                    left = hdr_cols[j * 3]
-                                    left.markdown(f"**Satz {j + 1}**", unsafe_allow_html=True)
-
-                            for match in groups[i].match_list:
-                                # Platzverhältnisse der Teams zu den Punkten
-                                col1, col2, col3, col4 = st.columns([20, 5, 20, 55])
-
-                                with col1:
-                                    st.markdown(
-                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t1}</strong></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with col2:
-                                    st.markdown(
-                                        "<div style='display:flex; align-items:center; height:38px;'>vs.</div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with col3:
-                                    st.markdown(
-                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t2}</strong></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with col4:
-                                    widths = []
-                                    for _ in range(num_sets):
-                                        widths.extend([1, 0.2, 1])
-                                    set_cols = st.columns(widths)
-
-                                    scores = {}
-                                    for j in range(num_sets):
-                                        key_a = f"set_{match.id}_a{j}"
-                                        key_b = f"set_{match.id}_b{j}"
-
-                                        default_pts = None
-                                        if match.sets and j in match.sets:
-                                            default_pts = match.sets[j][0]
-
-                                        with set_cols[j * 3]:
-                                            if default_pts is not None:
-                                                p1 = st.number_input(
-                                                    f"Satz {j + 1}",
-                                                    min_value=0,
-                                                    max_value=99,
-                                                    value=default_pts,
-                                                    step=1,
-                                                    key=key_a,
-                                                    label_visibility="collapsed",
-                                                    format="%d",
-                                                )
-                                            else:
-                                                p1 = st.number_input(
-                                                    f"Satz {j + 1}",
-                                                    min_value=0,
-                                                    max_value=99,
-                                                    value=0,  # ✅ Zeigt 0 an → Benutzer kann eintragen
-                                                    step=1,
-                                                    key=key_a,
-                                                    label_visibility="collapsed",
-                                                    format="%d",
-                                                )
-
-                                        with set_cols[j * 3 + 1]:
-                                            st.markdown(
-                                                "<div style='display:flex; align-items:center; height:38px;'><strong>:</strong></div>",
-                                                unsafe_allow_html=True,
-                                            )
-
-                                        with set_cols[j * 3 + 2]:
-                                            if default_pts is not None:
-                                                p2 = st.number_input(
-                                                    f"Satz {j + 1}",
-                                                    min_value=0,
-                                                    max_value=99,
-                                                    value=default_pts,
-                                                    step=1,
-                                                    key=key_b,
-                                                    label_visibility="collapsed",
-                                                    format="%d",
-                                                )
-                                            else:
-                                                p2 = st.number_input(
-                                                    f"Satz {j + 1}",
-                                                    min_value=0,
-                                                    max_value=99,
-                                                    value=0,  # ✅ Zeigt 0 an → Benutzer kann eintragen
-                                                    step=1,
-                                                    key=key_b,
-                                                    label_visibility="collapsed",
-                                                    format="%d",
-                                                )
-                                        scores[j+1] = (p1, p2)
-
-                                    process_match_scores(match=match, scores=scores)
-
-                            # ---- BUTTON: Ergebnisse dieser Gruppe speichern -----------------
-                            if st.button(f"✅ Ergebnisse für Gruppe {groups[i].name} speichern",
-                                         key=f"save_group_{groups[i].name}"):
-                                # Wir gehen alle Matches der Gruppe durch und setzen den Status
-                                for match in groups[i].match_list:
-                                    if match.status != MatchStatus.FINISHED:
-                                        match.status = MatchStatus.FINISHED
-                                for match in group.match_list:
-                                    print(match.score, match.winner)
-                                st.success(f"✅ Ergebnisse für Gruppe {groups[i].name} wurden gespeichert.")
-                                st.rerun()  # UI aktualisieren
-
+                    render_group_expander(group=groups[i])
+                with cols[1]:
+                    render_group_table(group=groups[i])
             st.markdown("---")
 
     with tabs[2]:
