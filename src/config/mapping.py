@@ -19,8 +19,8 @@ MATCH_MODE_TO_SETS = {
     MatchMode.SETS_1: ["1. Satz"],
     MatchMode.SETS_2: ["1. Satz", "2. Satz"],
     MatchMode.SETS_3: ["1. Satz", "2. Satz", "3. Satz"],
-    MatchMode.BEST_OF_3: ["1. Satz", "2. Satz"],
-    MatchMode.BEST_OF_5: ["1. Satz", "2. Satz", "3. Satz"],
+    MatchMode.BEST_OF_3: ["1. Satz", "2. Satz", "3. Satz"],
+    MatchMode.BEST_OF_5: ["1. Satz", "2. Satz", "3. Satz", "4. Satz", "5. Satz"],
 }
 
 
