@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Any, Tuple
 
+import pandas as pd
+
 from config import SCHEMA_MAP
 from config.constants import DOUBLE_SPACING_REQUIRED
 
@@ -249,6 +251,8 @@ class Group:
     assigned_courts: Optional[List[int]] = None
     settings: Optional[MatchSettings] = None
     match_list: List[Match] | None = None
+    _table_cache: Optional[pd.DataFrame] = None
+    _last_match_list_hash: Optional[int] = None
 
     def __init__(self, name: str, teams: List[str], teams_target: int):
         self.name = name
@@ -283,6 +287,106 @@ class Group:
                 f"und {self.num_courts} Feld(er). "
                 f"Verfügbare Kombinationen: {list(SCHEMA_MAP.keys())}"
             ) from exc
+
+    @property
+    def table(self) -> pd.DataFrame:
+        """
+        Berechnet die aktuelle Gruppentabelle aus den Match-Ergebnissen.
+        Cache: Nur neu berechnet, wenn sich die match_list geändert hat.
+        """
+        # Hash der match_list für Änderungserkennung
+        current_hash = hash(tuple((m.t1, m.t2, m.score, m.points) for m in (self.match_list or [])))
+
+        if self._table_cache is not None and self._last_match_list_hash == current_hash:
+            return self._table_cache
+
+        # Wenn keine Matches vorhanden → leere Tabelle
+        if not self.match_list:
+            return pd.DataFrame(columns=["Rang", "Team", "Spiele", "Sätze", "Kleine Punkte", "Punkte"])
+
+        # Statistiken berechnen (wie in deiner render_group_table-Funktion)
+        team_stats = {}
+
+        for match in self.match_list:
+            t1, t2 = match.t1, match.t2
+            for team, name in [(t1, t1), (t2, t2)]:
+                if name not in team_stats:
+                    team_stats[name] = {
+                        "Spiele": 0,
+                        "Siege": 0,
+                        "Niederlagen": 0,
+                        "Punkte": 0,
+                        "Sätze": 0,
+                        "Sätze-Verhältnis": (0, 0),
+                        "Kleine-Punkte": 0,
+                    }
+
+            if match.score is None:
+                continue
+
+            # Spiele zählen
+            team_stats[t1]["Spiele"] += 1
+            team_stats[t2]["Spiele"] += 1
+
+            # Punkte (2 für Sieg, 1 für unentschieden)
+            if match.score[0] > match.score[1]:
+                team_stats[t1]["Punkte"] += 2
+            elif match.score[1] > match.score[0]:
+                team_stats[t2]["Punkte"] += 2
+            else:
+                team_stats[t1]["Punkte"] += 1
+                team_stats[t2]["Punkte"] += 1
+
+            # Sätze
+            team_stats[t1]["Sätze"] += match.score[0]
+            team_stats[t2]["Sätze"] += match.score[1]
+
+            # Kleine Punkte (Differenz)
+            team_stats[t1]["Kleine-Punkte"] += match.points[0] - match.points[1]
+            team_stats[t2]["Kleine-Punkte"] += match.points[1] - match.points[0]
+
+        # Sätze-Verhältnis berechnen (gesamt gewonnen / verloren)
+        for name in team_stats:
+            sets_won = team_stats[name]["Sätze"]
+            sets_lost = 0
+            for match in self.match_list:
+                if name not in (match.t1, match.t2):
+                    continue
+                if match.score is None:
+                    continue
+                if match.t1 == name:
+                    sets_lost += match.score[1]
+                else:
+                    sets_lost += match.score[0]
+            team_stats[name]["Sätze-Verhältnis"] = (sets_won, sets_lost)
+
+        # Sortieren: Punkte → Sätze → Kleine Punkte
+        sorted_teams = sorted(
+            team_stats.items(),
+            key=lambda x: (x[1]["Punkte"], x[1]["Sätze-Verhältnis"][0] - x[1]["Sätze-Verhältnis"][1],
+                           x[1]["Kleine-Punkte"]),
+            reverse=True,
+        )
+
+        # Tabelle erstellen
+        table_data = []
+        for i, (name, stats) in enumerate(sorted_teams):
+            table_data.append({
+                "Rang": i + 1,
+                "Team": name,
+                "Spiele": stats["Spiele"],
+                "Sätze": f"{stats['Sätze-Verhältnis'][0]}:{stats['Sätze-Verhältnis'][1]}",
+                "Kleine Punkte": stats["Kleine-Punkte"],
+                "Punkte": stats["Punkte"],
+            })
+
+        df = pd.DataFrame(table_data)
+
+        # Cache speichern
+        self._table_cache = df
+        self._last_match_list_hash = current_hash
+
+        return df
 
     def add_head(self, team_name: str) -> None:
         """

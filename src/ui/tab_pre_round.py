@@ -438,7 +438,8 @@ def tab_group_stage():
                 with cols[0]:
                     render_group_expander(group=groups[i])
                 with cols[1]:
-                    render_group_table(group=groups[i])
+                    st.subheader(f"📋 Gruppentabelle: {groups[i].name}")
+                    st.dataframe(groups[i].table, hide_index=True, width='content')
             st.markdown("---")
 
     with tabs[2]:
