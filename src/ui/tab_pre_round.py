@@ -6,7 +6,7 @@ import pandas as pd
 
 from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
 from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
-from core.models import Group, Tournament, StageID, MatchStatus
+from core.models import Group, Tournament, StageID, MatchStatus, MatchMode
 from db import load_tournament, get_all_tournament_names
 from utils import export_stage
 
@@ -334,38 +334,38 @@ def tab_group_stage():
         groups = stage.groups  # → List[Group]
 
         # Gruppen paarweise nebeneinander darstellen
-        for i in range(0, len(groups), 2):
+        for i in range(len(groups)):
             cols = st.columns(2)
 
             if i < len(groups):
-                group_1 = groups[i]
-                group_name_1 = group_1.name
 
                 with cols[0]:
-                    with st.expander(f"🟦 Gruppe {group_name_1}", expanded=True):
-                        if not group_1.match_list:
+                    with st.expander(f"🟦 Gruppe {groups[i].name}", expanded=False):
+                        if not groups[i].match_list:
                             st.info("Keine Spiele generiert.")
                         else:
                             # Anzahl der Sätze
-                            sets = MATCH_MODE_TO_SETS.get(group_1.settings.modus, ["1. Satz"])
+                            sets = MATCH_MODE_TO_SETS.get(groups[i].settings.modus, ["1. Satz"])
                             num_sets = len(sets)
+                            points = groups[i].settings.points
+                            if groups[i].settings.modus == MatchMode.BEST_OF_3 or groups[i].settings.modus == MatchMode.BEST_OF_5:
+                                tiebreak = groups[i].settings.tiebreak
 
                             # Platzverteilung für die Header
-                            header_c1, header_c2, header_c3, header_c4 = st.columns([20, 10, 20, 50])
+                            header_c1, header_c2, header_c3, header_c4 = st.columns([20, 5, 20, 55])
                             with header_c4:
                                 widths = []
                                 for _ in range(num_sets):
-                                    widths.extend([1, 0.2, 1])
+                                    widths.extend([1.5, 0.2, 0.5])
                                 hdr_cols = st.columns(widths)
 
                                 for j in range(num_sets):
                                     left = hdr_cols[j * 3]
-                                    left.markdown(f"**Satz {j + 1}**",
-                                                  unsafe_allow_html=True)
+                                    left.markdown(f"**Satz {j + 1}**", unsafe_allow_html=True)
 
-                            for match in group_1.match_list:
+                            for match in groups[i].match_list:
                                 # Platzverhältnisse der Teams zu den Punkten
-                                col1, col2, col3, col4 = st.columns([20, 10, 20, 50])
+                                col1, col2, col3, col4 = st.columns([20, 5, 20, 55])
 
                                 with col1:
                                     st.markdown(
@@ -388,182 +388,121 @@ def tab_group_stage():
                                         widths.extend([1, 0.2, 1])
                                     set_cols = st.columns(widths)
 
-                                    scores = []
+                                    scores = {}
                                     for j in range(num_sets):
                                         key_a = f"set_{match.id}_a{j}"
                                         key_b = f"set_{match.id}_b{j}"
 
-                                        default_a = default_b = ""
-                                        if match.sets and j < len(match.sets):
-                                            default_a = str(match.sets[j][0])
-                                            default_b = str(match.sets[j][1])
+                                        default_pts = None
+                                        if match.sets and j in match.sets:
+                                            default_pts = match.sets[j][0]
 
                                         with set_cols[j * 3]:
-                                            p1 = st.number_input(
-                                                f"Satz {j + 1}",
-                                                min_value=0,
-                                                max_value=99,
-                                                value=int(default_a) if default_a else 0,
-                                                step=1,
-                                                key=key_a,
-                                                label_visibility="collapsed",
-                                                format="%d",
-                                            )
+                                            if default_pts is not None:
+                                                p1 = st.number_input(
+                                                    f"Satz {j + 1}",
+                                                    min_value=0,
+                                                    max_value=99,
+                                                    value=default_pts,
+                                                    step=1,
+                                                    key=key_a,
+                                                    label_visibility="collapsed",
+                                                    format="%d",
+                                                )
+                                            else:
+                                                p1 = st.number_input(
+                                                    f"Satz {j + 1}",
+                                                    min_value=0,
+                                                    max_value=99,
+                                                    value=0,  # ✅ Zeigt 0 an → Benutzer kann eintragen
+                                                    step=1,
+                                                    key=key_a,
+                                                    label_visibility="collapsed",
+                                                    format="%d",
+                                                )
 
                                         with set_cols[j * 3 + 1]:
                                             st.markdown(
-                                                "<div style='text-align:center; font-weight:bold;'>:</div>",
+                                                "<div style='display:flex; align-items:center; height:38px;'><strong>:</strong></div>",
                                                 unsafe_allow_html=True,
                                             )
 
                                         with set_cols[j * 3 + 2]:
-                                            p2 = st.number_input(
-                                                f"Satz {j + 1}",
-                                                min_value=0,
-                                                max_value=99,
-                                                value=int(default_b) if default_b else 0,
-                                                step=1,
-                                                key=key_b,
-                                                label_visibility="collapsed",
-                                                format="%d",
-                                            )
-                                        scores.append((p1, p2))
-
-                                    # ---- Wenn mindestens ein Punkt pro Satz eingegeben wurde ----
-                                    if all(p1 > 0 or p2 > 0 for p1, p2 in scores):
-                                        try:
-                                            if match.status == MatchStatus.FINISHED:
-                                                st.warning(f"✅ Match {match.id} ist bereits beendet.")
+                                            if default_pts is not None:
+                                                p2 = st.number_input(
+                                                    f"Satz {j + 1}",
+                                                    min_value=0,
+                                                    max_value=99,
+                                                    value=default_pts,
+                                                    step=1,
+                                                    key=key_b,
+                                                    label_visibility="collapsed",
+                                                    format="%d",
+                                                )
                                             else:
-                                                for p1, p2 in scores:
-                                                    if p1 > 0 or p2 > 0:
-                                                        match.add_set(p1, p2)
-                                                st.success(f"✅ Alle Sätze hinzugefügt.")
-                                        except ValueError:
-                                            st.error("❌ Ungültige Punktzahl – bitte Zahlen eingeben.")
+                                                p2 = st.number_input(
+                                                    f"Satz {j + 1}",
+                                                    min_value=0,
+                                                    max_value=99,
+                                                    value=0,  # ✅ Zeigt 0 an → Benutzer kann eintragen
+                                                    step=1,
+                                                    key=key_b,
+                                                    label_visibility="collapsed",
+                                                    format="%d",
+                                                )
+                                        scores[j+1] = (p1, p2)
+
+                                    # prüft ob, alle ausreichend Punkte eingetragen wurden
+                                    if groups[i].settings.modus != MatchMode.BEST_OF_3 and groups[i].settings.modus != MatchMode.BEST_OF_5:
+                                        # Standard-Regel: Alle Sätze müssen ausgefüllt sein
+                                        if all(p1 and p2 for p1, p2 in scores.values()):
+                                            if all(p1 >= points or p2 >= points for p1, p2 in scores.values()):
+                                                print(f"test: {scores}")
+                                                try:
+                                                    for set_num, (p1, p2) in scores.items():
+                                                        print(f"Satz {set_num}: {p1}:{p2}")
+                                                        match.add_set(set_num, p1, p2)
+                                                except ValueError as e:
+                                                    print(f"Fehler bei Satz {set_num}: {e}")
+                                                    st.error(f"Fehler bei Satz {set_num}: {e}")
+                                    else:
+                                        # BEST_OF_3 oder BEST_OF_5 → Prüfe, ob Match beendet ist
+                                        is_best_of_3 = groups[i].settings.modus == MatchMode.BEST_OF_3
+
+                                        # Mindestanzahl an Sätzen, um zu gewinnen
+                                        min_sets_to_win = 2 if is_best_of_3 else 3
+
+                                        # Zähle Gewinnsätze
+                                        t1_won = sum(1 for p1, p2 in scores.values() if p1 > p2)
+                                        t2_won = sum(1 for p1, p2 in scores.values() if p2 > p1)
+
+                                        # Ist das Match beendet?
+                                        match_finished = t1_won >= min_sets_to_win or t2_won >= min_sets_to_win
+
+                                        # Wenn das Match beendet ist, prüfe, ob alle gespielten Sätze gültig sind
+                                        if match_finished:
+                                            try:
+                                                for set_num, (p1, p2) in scores.items():
+                                                    if p1 is not None and p2 is not None:
+                                                        if p1 != 0 and p2 != 0:
+                                                            print(f"Satz {set_num}: {p1}:{p2}")
+                                                            match.add_set(set_num, p1, p2)
+                                                            print(match.score_str)
+                                            except ValueError as e:
+                                                print(f"Fehler bei Satz {set_num}: {e}")
+                                                st.error(f"Fehler bei Satz {set_num}: {e}")
 
                             # ---- BUTTON: Ergebnisse dieser Gruppe speichern -----------------
-                            if st.button(f"✅ Ergebnisse für Gruppe {group_name_1} speichern",
-                                         key=f"save_group_{group_name_1}"):
+                            if st.button(f"✅ Ergebnisse für Gruppe {groups[i].name} speichern",
+                                         key=f"save_group_{groups[i].name}"):
                                 # Wir gehen alle Matches der Gruppe durch und setzen den Status
-                                for match in group_1.match_list:
+                                for match in groups[i].match_list:
                                     if match.status != MatchStatus.FINISHED:
-                                        # Wenn noch nicht fertig, prüfen, ob genug Sätze vorhanden sind
-                                        if len(match.sets) == num_sets:
-                                            match.status = MatchStatus.FINISHED
-                                st.success(f"✅ Ergebnisse für Gruppe {group_name_1} wurden gespeichert.")
+                                        match.status = MatchStatus.FINISHED
+                                for match in group.match_list:
+                                    print(match.score, match.winner)
+                                st.success(f"✅ Ergebnisse für Gruppe {groups[i].name} wurden gespeichert.")
                                 st.rerun()  # UI aktualisieren
-
-            # -------------------------------------------------
-            # ==== GRUPPE 2 =========================================================
-            # -------------------------------------------------
-            if i + 1 < len(groups):
-                group_2 = groups[i + 1]
-                group_name_2 = group_2.name
-
-                with cols[1]:
-                    with st.expander(f"🟦 Gruppe {group_name_2}", expanded=True):
-                        if not group_2.match_list:
-                            st.info("Keine Spiele generiert.")
-                        else:
-                            sets = MATCH_MODE_TO_SETS.get(group_2.settings.modus, ["1. Satz"])
-                            num_sets = len(sets)
-
-                            header_c1, header_c2, header_c3, header_c4 = st.columns([20, 10, 20, 50])
-                            with header_c4:
-                                widths = []
-                                for _ in range(num_sets):
-                                    widths.extend([1, 0.2, 1])
-                                hdr_cols = st.columns(widths)
-
-                                for j in range(num_sets):
-                                    left = hdr_cols[j * 3]
-                                    left.markdown(f"**Satz {j + 1}**",
-                                                  unsafe_allow_html=True)
-
-                            for match in group_2.match_list:
-                                col1, col2, col3, col4 = st.columns([20, 10, 20, 50])
-
-                                with col1:
-                                    st.markdown(
-                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t1}</strong></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with col2:
-                                    st.markdown(
-                                        "<div style='display:flex; align-items:center; height:38px;'>vs.</div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with col3:
-                                    st.markdown(
-                                        f"<div style='display:flex; align-items:center; height:38px;'><strong>{match.t2}</strong></div>",
-                                        unsafe_allow_html=True,
-                                    )
-                                with col4:
-                                    widths = []
-                                    for _ in range(num_sets):
-                                        widths.extend([1, 0.2, 1])
-                                    set_cols = st.columns(widths)
-
-                                    scores = []
-                                    for j in range(num_sets):
-                                        key_a = f"set_{match.id}_a{j}"
-                                        key_b = f"set_{match.id}_b{j}"
-
-                                        default_a = default_b = ""
-                                        if match.sets and j < len(match.sets):
-                                            default_a = str(match.sets[j][0])
-                                            default_b = str(match.sets[j][1])
-
-                                        with set_cols[j * 3]:
-                                            p1 = st.number_input(
-                                                f"Satz {j + 1}",
-                                                min_value=0,
-                                                max_value=99,
-                                                value=int(default_a) if default_a else 0,
-                                                step=1,
-                                                key=key_a,
-                                                label_visibility="collapsed",
-                                                format="%d",
-                                            )
-                                        with set_cols[j * 3 + 1]:
-                                            st.markdown(
-                                                "<div style='text-align:center; font-weight:bold;'>:</div>",
-                                                unsafe_allow_html=True,
-                                            )
-                                        with set_cols[j * 3 + 2]:
-                                            p2 = st.number_input(
-                                                f"Satz {j + 1}",
-                                                min_value=0,
-                                                max_value=99,
-                                                value=int(default_b) if default_b else 0,
-                                                step=1,
-                                                key=key_b,
-                                                label_visibility="collapsed",
-                                                format="%d",
-                                            )
-                                        scores.append((p1, p2))
-
-                                    if all(p1 > 0 or p2 > 0 for p1, p2 in scores):
-                                        try:
-                                            if match.status == MatchStatus.FINISHED:
-                                                st.warning(f"✅ Match {match.id} ist bereits beendet.")
-                                            else:
-                                                for p1, p2 in scores:
-                                                    if p1 > 0 or p2 > 0:
-                                                        match.add_set(p1, p2)
-                                                st.success(f"✅ Alle Sätze hinzugefügt.")
-                                        except ValueError:
-                                            st.error("❌ Ungültige Punktzahl – bitte Zahlen eingeben.")
-
-                            if st.button(f"✅ Ergebnisse für Gruppe {group_name_2} speichern",
-                                         key=f"save_group_{group_name_2}"):
-                                for match in group_2.match_list:
-                                    if match.status != MatchStatus.FINISHED:
-                                        if len(match.sets) == num_sets:
-                                            match.status = MatchStatus.FINISHED
-                                st.success(f"✅ Ergebnisse für Gruppe {group_name_2} wurden gespeichert.")
-                                st.rerun()
 
             st.markdown("---")
 
