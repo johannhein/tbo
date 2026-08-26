@@ -4,6 +4,7 @@ from enum import Enum, auto
 from typing import List, Dict, Optional, Any, Tuple
 
 from config import SCHEMA_MAP
+from config.constants import DOUBLE_SPACING_REQUIRED
 
 MatchID = int
 StageID = str
@@ -32,6 +33,15 @@ class MatchMode(Enum):
     SETS_2 = "2 Sätze"
     SETS_1 = "1 Satz"
 
+# Mapping für die Spielpläne
+MATCH_MODE_TO_SETS = {
+    MatchMode.SETS_1: ["1. Satz"],
+    MatchMode.SETS_2: ["1. Satz", "2. Satz"],
+    MatchMode.SETS_3: ["1. Satz", "2. Satz", "3. Satz"],
+    MatchMode.BEST_OF_3: ["1. Satz", "2. Satz"],
+    MatchMode.BEST_OF_5: ["1. Satz", "2. Satz", "3. Satz"],
+}
+
 # -------------------------------------------------
 # Dataclasses
 # -------------------------------------------------
@@ -42,7 +52,8 @@ class Match:
     t1: str
     t2: str
     ref: Optional[str] = None
-    sets: List[Tuple[int, int]] = field(default_factory=list)
+    settings: Optional[MatchSettings] = None
+    sets: Dict[int, Tuple[int, int]] = field(default_factory=dict)
     status: MatchStatus = MatchStatus.PENDING
 
     @property
@@ -53,11 +64,9 @@ class Match:
         """
         if not self.sets:
             return None
-
-        t1_won = sum(1 for p1, p2 in self.sets if p1 > p2)
-        t2_won = sum(1 for p1, p2 in self.sets if p2 > p1)
-
-        return t1_won,t2_won
+        t1_won = sum(1 for p1, p2 in self.sets.values() if p1 > p2)
+        t2_won = sum(1 for p1, p2 in self.sets.values() if p2 > p1)
+        return t1_won, t2_won
 
     @property
     def score_str(self) -> str:
@@ -75,6 +84,8 @@ class Match:
             return self.t1
         if s[1] > s[0]:
             return self.t2
+        if s[1] == s[0]:
+            return "unentschieden"
         return None
 
     @property
@@ -87,36 +98,39 @@ class Match:
             return self.t1
         if s[1] < s[0]:
             return self.t2
+        if s[1] == s[0]:
+            return "unentschieden"
         return None
 
-    @staticmethod
-    def _validate_set(p1: int, p2: int) -> None:
-        """Prüft, ob ein einzelner Satz plausibel ist. Für Tennis (Best‑of‑3) gelten z.B.:
-        - 0≤Punkte≤7
-        - kein Unentschieden
-        - ein Spieler muss mindestens 6 Punkte haben und mit mind. 2 Punkten Vorsprung gewinnen,
-          außer bei 7‑6 (Tie‑Break).
-        """
-        if not (0 <= p1 <= 7 and 0 <= p2 <= 7):
-            raise ValueError("Punkte müssen zwischen 0 und 7 liegen.")
-        if p1 == p2:
-            raise ValueError("Ein Satz darf nicht unentschieden enden.")
-        # Minimal‑Gewinn‑Regel
-        if max(p1, p2) < 6:
-            raise ValueError("Ein Satz muss mit mindestens 6 Punkten gewonnen werden.")
-        if abs(p1 - p2) < 2 and max(p1, p2) != 7:
-            raise ValueError("Gewinner muss mit mindestens 2 Punkten Unterschied gewinnen "
-                             "(außer 7‑6).")
+    def _validate_set(self, set_num: int, p1: int, p2: int) -> None:
+        """Prüft, ob ein einzelner Satz plausibel ist."""
+        num_sets = len(MATCH_MODE_TO_SETS.get(self.settings.modus))
+        if DOUBLE_SPACING_REQUIRED:
+            min_advantage = 2
+        else:
+            min_advantage = 1
+        if abs(p1 - p2) < min_advantage:
+            raise ValueError( f"Ein Satz muss mindestens {min_advantage} Punkt/Punkte Vorsprung haben. Ergebnis: {p1}:{p2}")
+        if set_num > num_sets:
+            raise ValueError(f"Das Match hat maximal nur {str(num_sets)} Satz/Sätze.")
+        if not self.settings.tiebreak or num_sets > set_num:
+            if not (p1 >= self.settings.points or p2 >= self.settings.points):
+                raise ValueError(f"Kein Team hat die erforderlichen Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
+        if self.settings.tiebreak and num_sets == set_num:
+            if not (p1 >= self.settings.tiebreak or p2 >= self.settings.tiebreak):
+                raise ValueError(f"Kein Team hat die erforderlichen Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
+
 
     @classmethod
-    def create(cls, match_id: int, court: int, t1: str, t2: str, ref: Optional[str] = None) -> Match:
+    def create(cls, match_id: int, court: int, t1: str, t2: str, ref: Optional[str] = None,
+               settings_match: Optional[MatchSettings] = None) -> Match:
         """Factory‑Methode – gibt automatisch die nächste globale Match‑ID zurück."""
-        return cls(id=match_id, court=court, t1=t1, t2=t2, ref=ref)
+        return cls(id=match_id, court=court, t1=t1, t2=t2, ref=ref, settings=settings_match)
 
-    def add_set(self, p1: int, p2: int) -> None:
+    def add_set(self, set_num: int, p1: int, p2: int) -> None:
         """Fügt einen neuen Satz zum Match hinzu und aktualisiert den Status."""
-        self._validate_set(p1, p2)
-        self.sets.append((p1, p2))
+        self._validate_set(set_num, p1, p2)
+        self.sets[set_num] = p1, p2
 
         # Status‑Logik
         if self.winner is not None:
@@ -343,7 +357,8 @@ class Group:
                     match_index % len(self.assigned_courts)
                 ]
 
-                new_match = Match.create(match_id=match_index, court=court_id, t1=t1_name, t2=t2_name, ref=ref_name)
+                new_match = Match.create(match_id=match_index, court=court_id, t1=t1_name, t2=t2_name, ref=ref_name,
+                                         settings_match=self.settings)
                 self.match_list.append(new_match)
 
                 match_index += 1
