@@ -33,4 +33,4 @@ DEFAULT_GROUPS   = 4
 
 NAME_PREROUND = "Vorrunde Gruppenphase"
 
-DOUBLE_SPACING_REQUIRED = True
+MIN_DIFF = True
