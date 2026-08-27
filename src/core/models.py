@@ -6,7 +6,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import pandas as pd
 
 from config import SCHEMA_MAP
-from config.constants import DOUBLE_SPACING_REQUIRED
+from config.constants import MIN_DIFF
 
 MatchID = int
 StageID = str
@@ -124,7 +124,7 @@ class Match:
     def _validate_set(self, set_num: int, p1: int, p2: int) -> None:
         """Prüft, ob ein einzelner Satz plausibel ist."""
         num_sets = len(MATCH_MODE_TO_SETS.get(self.settings.modus))
-        if DOUBLE_SPACING_REQUIRED:
+        if MIN_DIFF:
             min_advantage = 2
         else:
             min_advantage = 1
@@ -427,7 +427,7 @@ class Group:
                 team_stats[t1]["Punkte"] += 2
             elif match.score[1] > match.score[0]:
                 team_stats[t2]["Punkte"] += 2
-            else:
+            elif match.score[1] == match.score[0]:
                 team_stats[t1]["Punkte"] += 1
                 team_stats[t2]["Punkte"] += 1
 
