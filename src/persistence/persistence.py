@@ -31,7 +31,13 @@ def load_csv(path: Path) -> pd.DataFrame:
 def load_csv(path: Path) -> pd.DataFrame:
     """CSV einmalig einlesen und im Cache halten."""
     enc = detect_encoding(path)
-    return pd.read_csv(path, dtype=str, encoding=enc, delimiter=";")
+    df = pd.read_csv(path, dtype=str, encoding=enc, delimiter=";")
+
+    # Entfernt führende und nachfolgende Leerzeichen in der Spalte "Team"
+    if "Team" in df.columns:
+        df["Team"] = df["Team"].str.strip()
+
+    return df
 
 
 def save_tournament_pickle(tournament: Tournament, filename: str) -> None:
