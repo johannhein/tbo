@@ -1,32 +1,31 @@
+import random
 from pathlib import Path
 from typing import List
 import streamlit as st
 import pandas as pd
 
 from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
-from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
-from core.models import Group, Tournament, MatchStatus, Match
+from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND, MIN_DIFF
+from core.models import Group, Tournament, MatchStatus, Match, MatchMode
 from db import load_tournament, get_all_tournament_names
 from scoring import process_match_scores
+from ui.tab_new_round import tab_new_round
 from utils import export_stage
 
 
-def create_score_input(col: st.delta_generator.DeltaGenerator, default_pts: int | None, key: str, label: str = "", ) -> int:
+def create_score_input(col: st.delta_generator.DeltaGenerator, default_pts: int | None, key: str, label: str = "") -> int:
     """
     Erstellt ein st.number_input für einen Punktestand.
     Gibt den Wert zurück.
     """
     with col:
-        if default_pts is not None:
-            value = default_pts
-        else:
-            value = 0
-
+        # ✅ Lasse Streamlit den Wert aus st.session_state lesen
+        # → Kein `value=` mehr!
         return st.number_input(
             label,
             min_value=0,
             max_value=99,
-            value=value,
+            # ❌ Entferne: value=value
             step=1,
             key=key,
             label_visibility="collapsed",
@@ -50,6 +49,7 @@ def render_match_header(num_sets: int):
 
 def render_match_row(match: Match, num_sets: int):
     """Zeigt ein einzelnes Match mit Teams und Sätzen an."""
+    # todo problem wenn ein Satz zu 0 endet fixen
     # Platzverhältnisse
     col1, col2, col3, col4 = st.columns([20, 5, 20, 55])
 
@@ -96,7 +96,7 @@ def render_group_expander(group: Group):
     sets = MATCH_MODE_TO_SETS.get(group.settings.modus, ["1. Satz"])
     num_sets = len(sets)
 
-    with st.expander(f"🟦 Gruppe {group.name}", expanded=False):
+    with st.expander(f"🟦 Gruppe {group.name}", expanded=True):
         render_match_header(num_sets)
 
         for match in group.match_list:
@@ -279,7 +279,7 @@ def tab_group_stage():
     st.header("🆕 Vorrunde")
 
     # ✅ Neue Tabs innerhalb von "Vorrunde"
-    tabs = st.tabs(["📋 Übersicht", "📊 Ergebnisse", "📋 Zusammenfassung"])
+    tabs = st.tabs(["📋 Übersicht", "📊 Ergebnisse", "📋 Zusammenfassung", "⏩ Nächste Runde"])
 
     with tabs[0]:
         # --- Übersicht ---
@@ -420,8 +420,75 @@ def tab_group_stage():
 
     with tabs[1]:
         st.header("📊 Ergebnisse eingeben")
-        st.markdown("Noch nicht fertig. Geduldet euch.")
 
+        # --- Zufalls-Simulation Button ---
+        if st.button("🎲 Zufällige Ergebnisse simulieren", key="simulate_results", type="secondary"):
+            st.info("🎲 Simuliere zufällige Ergebnisse für alle Gruppen...")
+
+            tournament = st.session_state["tournament"]
+            stage = next(iter(tournament.stages.values()))
+            groups = stage.groups
+
+            for group in groups:
+                modus = group.settings.modus
+                points = group.settings.points
+                tiebreak_points = group.settings.tiebreak
+                num_sets = len(MATCH_MODE_TO_SETS[modus])
+
+                for match in group.match_list:
+                    scores = {}
+                    sets_won = [0, 0]  # [Team1, Team2]
+
+                    # Simuliere Sätze nur, solange das Match noch offen ist
+                    for set_idx in range(num_sets):
+                        # Ist dieser Satz ein Tiebreak? (nur bei BEST_OF_3, 3. Satz)
+                        is_tiebreak = (modus == MatchMode.BEST_OF_3 and set_idx == 2)
+                        target = tiebreak_points if is_tiebreak else points
+                        min_diff = 2
+
+                        # Nur simulieren, wenn das Match noch offen ist
+                        # Bei BEST_OF_3: nur 3. Satz, wenn 1:1
+                        if modus == MatchMode.BEST_OF_3 and set_idx == 2:
+                            if sets_won[0] == 1 and sets_won[1] == 1:
+                                # Nur wenn 1:1 → Tiebreak simulieren
+                                pass
+                            else:
+                                # Match entschieden → 3. Satz nicht nötig
+                                # Setze 0:0 (oder überspringe)
+                                continue  # Überspringe Simulation
+
+                        # Zufällige Startpunkte
+                        p1 = random.randint(1, target)
+                        p2 = random.randint(1, target)
+
+                        # Solange: Abstand zu klein oder noch kein Team target erreicht hat
+                        while not ((p1 >= target or p2 >= target) and abs(p1 - p2) >= min_diff):
+                            if p1 > p2 or p1 == p2:
+                                p1 += 1
+                            else:
+                                p2 += 1
+
+                        scores[set_idx + 1] = (p1, p2)
+
+                        # Zähle Sätze
+                        if p1 > p2:
+                            sets_won[0] += 1
+                        else:
+                            sets_won[1] += 1
+
+                        # Setze in Session-State
+                        key_a = f"set_{match.id}_a{set_idx}"
+                        key_b = f"set_{match.id}_b{set_idx}"
+                        st.session_state[key_a] = p1
+                        st.session_state[key_b] = p2
+
+                    # Aktualisiere Match-Status
+                    process_match_scores(match=match, scores=scores)
+
+            st.success("✅ Zufällige Ergebnisse wurden erfolgreich simuliert und in die Eingabefelder eingetragen!")
+            st.rerun()
+
+        # --- Anzeige der Matches ---
         if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
             st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
             st.stop()
@@ -430,15 +497,15 @@ def tab_group_stage():
         stage = next(iter(tournament.stages.values()))
         groups = stage.groups
 
-        # Gruppen paarweise nebeneinander darstellen
         for i in range(len(groups)):
             cols = st.columns(2)
             if i < len(groups):
                 with cols[0]:
-                    render_group_expander(group=groups[i])
+                    group = groups[i]
+                    render_group_expander(group=group)
                 with cols[1]:
-                    st.subheader(f"📋 Gruppentabelle: {groups[i].name}")
-                    st.dataframe(groups[i].table, hide_index=True, width='content')
+                    st.subheader(f"📋 Gruppentabelle: {group.name}")
+                    st.dataframe(group.table, hide_index=True, width='content')
             st.markdown("---")
 
     with tabs[2]:
@@ -451,15 +518,18 @@ def tab_group_stage():
             st.dataframe(
                 stage.table,
                 hide_index=True,
-                use_container_width=True,
+                width='content',
                 height=1200,
             )
 
         with cols[1]:
             st.subheader("Platzierungstabellen")
             for rank, table in stage.placement_tables.items():
-                st.markdown(f"### 🥇 Platzierung {rank}")
+                st.markdown(f"### 🥇 Alle {rank}. Plätze")
                 if table.empty:
                     st.info("Keine Teams mit dieser Platzierung.")
                 else:
                     st.dataframe(table, hide_index=True, width='content')
+
+    with tabs[3]:
+        tab_new_round()
