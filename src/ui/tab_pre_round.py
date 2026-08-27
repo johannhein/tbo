@@ -5,10 +5,11 @@ import streamlit as st
 import pandas as pd
 
 from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
-from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND, MIN_DIFF
+from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
 from core.models import Group, Tournament, MatchStatus, Match, MatchMode
 from db import load_tournament, get_all_tournament_names
 from scoring import process_match_scores
+from scoring.results import simulate_random_results
 from ui.tab_new_round import tab_new_round
 from utils import export_stage
 
@@ -19,13 +20,11 @@ def create_score_input(col: st.delta_generator.DeltaGenerator, default_pts: int 
     Gibt den Wert zurück.
     """
     with col:
-        # ✅ Lasse Streamlit den Wert aus st.session_state lesen
-        # → Kein `value=` mehr!
         return st.number_input(
             label,
             min_value=0,
             max_value=99,
-            # ❌ Entferne: value=value
+            # value=value
             step=1,
             key=key,
             label_visibility="collapsed",
@@ -50,7 +49,7 @@ def render_match_header(num_sets: int):
 def render_match_row(match: Match, num_sets: int):
     """Zeigt ein einzelnes Match mit Teams und Sätzen an."""
     # todo problem wenn ein Satz zu 0 endet fixen
-    # Platzverhältnisse
+    # siehe create_score_input mit einbeziehen
     col1, col2, col3, col4 = st.columns([20, 5, 20, 55])
 
     with col1:
@@ -87,6 +86,44 @@ def render_match_row(match: Match, num_sets: int):
         process_match_scores(match=match, scores=scores,)
 
 
+def _display_group_row_content(group, group_name: str):
+    """Hilfsfunktion: Zeigt Gruppen-Header und Info an."""
+    if group.assigned_courts:
+        st.subheader(f"🟦 Gruppe {group_name} Feld {', '.join(map(str, group.assigned_courts))}")
+    else:
+        st.markdown(f"🟦 Gruppe {group_name} noch kein Feld zugewiesen")
+    _display_group_info(group)
+
+
+def display_group_row(group_names: list, idx: int, selected_team: str):
+    """
+    Zeigt eine Zeile mit zwei Gruppen an (max. zwei pro Zeile).
+    """
+    cols = st.columns(2)
+
+    # Gruppe 1
+    grp_name_1 = group_names[idx]
+    grp_1 = st.session_state["groups"][grp_name_1]
+
+    with cols[0]:
+        _display_group_row_content(grp_1, grp_name_1)
+
+        plot_schedule(grp_1, selected_team)
+
+    # Gruppe 2 (falls vorhanden)
+    if idx + 1 < len(group_names):
+        grp_name_2 = group_names[idx + 1]
+        grp_2 = st.session_state["groups"][grp_name_2]
+
+        with cols[1]:
+            _display_group_row_content(grp_2, grp_name_2)
+
+            plot_schedule(grp_2, selected_team)
+    else:
+        with cols[1]:
+            st.empty()
+
+
 def render_group_expander(group: Group):
     """Zeigt die Gruppe mit Matches und Tabelle an."""
     if not group.match_list:
@@ -102,7 +139,6 @@ def render_group_expander(group: Group):
         for match in group.match_list:
             render_match_row(match=match, num_sets=num_sets)
 
-        # Button: Ergebnisse speichern
         if st.button(f"✅ Ergebnisse für Gruppe {group.name} speichern", key=f"save_group_{group.name}"):
             for match in group.match_list:
                 if match.status != MatchStatus.FINISHED:
@@ -278,7 +314,6 @@ def plot_schedule(group: Group, selected_team: str):
 def tab_group_stage():
     st.header("🆕 Vorrunde")
 
-    # ✅ Neue Tabs innerhalb von "Vorrunde"
     tabs = st.tabs(["📋 Übersicht", "📊 Ergebnisse", "📋 Zusammenfassung", "⏩ Nächste Runde"])
 
     with tabs[0]:
@@ -379,37 +414,7 @@ def tab_group_stage():
 
         # Zeige Gruppen an
         for i in range(0, len(group_names), 2):
-            cols = st.columns(2)
-
-            grp_name_1 = group_names[i]
-            grp_1 = st.session_state["groups"][grp_name_1]
-
-            with cols[0]:
-                if grp_1.assigned_courts:
-                    st.subheader(f"🟦 Gruppe {grp_name_1} Feld {', '.join(map(str, grp_1.assigned_courts))}")
-                else:
-                    st.markdown(f"🟦 Gruppe {grp_name_1} noch kein Feld zugewiesen")
-
-                _display_group_info(grp_1)
-
-                plot_schedule(grp_1, selected_team)
-
-            if i + 1 < len(group_names):
-                grp_name_2 = group_names[i + 1]
-                grp_2 = st.session_state["groups"][grp_name_2]
-
-                with cols[1]:
-                    if grp_2.assigned_courts:
-                        st.subheader(f"🟦 Gruppe {grp_name_2} Feld {', '.join(map(str, grp_2.assigned_courts))}")
-                    else:
-                        st.markdown(f"🟦 Gruppe {grp_name_2} noch kein Feld zugewiesen")
-
-                    _display_group_info(grp_2)
-
-                    plot_schedule(grp_2, selected_team)
-            else:
-                with cols[1]:
-                    st.empty()
+            display_group_row(group_names, i, selected_team)
 
         if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
             stage_name = NAME_PREROUND
@@ -426,66 +431,7 @@ def tab_group_stage():
             st.info("🎲 Simuliere zufällige Ergebnisse für alle Gruppen...")
 
             tournament = st.session_state["tournament"]
-            stage = next(iter(tournament.stages.values()))
-            groups = stage.groups
-
-            for group in groups:
-                modus = group.settings.modus
-                points = group.settings.points
-                tiebreak_points = group.settings.tiebreak
-                num_sets = len(MATCH_MODE_TO_SETS[modus])
-
-                for match in group.match_list:
-                    scores = {}
-                    sets_won = [0, 0]  # [Team1, Team2]
-
-                    # Simuliere Sätze nur, solange das Match noch offen ist
-                    for set_idx in range(num_sets):
-                        # Ist dieser Satz ein Tiebreak? (nur bei BEST_OF_3, 3. Satz)
-                        is_tiebreak = (modus == MatchMode.BEST_OF_3 and set_idx == 2)
-                        target = tiebreak_points if is_tiebreak else points
-                        min_diff = 2
-
-                        # Nur simulieren, wenn das Match noch offen ist
-                        # Bei BEST_OF_3: nur 3. Satz, wenn 1:1
-                        if modus == MatchMode.BEST_OF_3 and set_idx == 2:
-                            if sets_won[0] == 1 and sets_won[1] == 1:
-                                # Nur wenn 1:1 → Tiebreak simulieren
-                                pass
-                            else:
-                                # Match entschieden → 3. Satz nicht nötig
-                                # Setze 0:0 (oder überspringe)
-                                continue  # Überspringe Simulation
-
-                        # Zufällige Startpunkte
-                        p1 = random.randint(1, target)
-                        p2 = random.randint(1, target)
-
-                        # Solange: Abstand zu klein oder noch kein Team target erreicht hat
-                        while not ((p1 >= target or p2 >= target) and abs(p1 - p2) >= min_diff):
-                            if p1 > p2 or p1 == p2:
-                                p1 += 1
-                            else:
-                                p2 += 1
-
-                        scores[set_idx + 1] = (p1, p2)
-
-                        # Zähle Sätze
-                        if p1 > p2:
-                            sets_won[0] += 1
-                        else:
-                            sets_won[1] += 1
-
-                        # Setze in Session-State
-                        key_a = f"set_{match.id}_a{set_idx}"
-                        key_b = f"set_{match.id}_b{set_idx}"
-                        st.session_state[key_a] = p1
-                        st.session_state[key_b] = p2
-
-                    # Aktualisiere Match-Status
-                    process_match_scores(match=match, scores=scores)
-
-            st.success("✅ Zufällige Ergebnisse wurden erfolgreich simuliert und in die Eingabefelder eingetragen!")
+            simulate_random_results(tournament)
             st.rerun()
 
         # --- Anzeige der Matches ---
