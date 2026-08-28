@@ -18,6 +18,30 @@ from core.models import Group, Tournament, StageType, MatchSettings, Stage
 # ----------------------------------------------------------------------
 # Hilfsfunktionen
 # ----------------------------------------------------------------------
+def get_text_msg_for_groups(num_teams, num_groups):
+    """Berechnet die Anzahl der Teams für jede Gruppe und gibt es aus."""
+    if num_groups <= 0:
+        return "Fehler: Anzahl der Gruppen muss größer als 0 sein."
+    if num_teams <= 0:
+        return "Fehler: Anzahl der Teams muss größer als 0 sein."
+
+    base = num_teams // num_groups
+    remainder = num_teams % num_groups
+
+    # Anzahl der Gruppen mit einem zusätzlichen Team
+    groups_with_extra = remainder
+    groups_with_base = num_groups - remainder
+
+    # Erstelle die Ausgabe
+    lines = []
+    if groups_with_base > 0:
+        lines.append(f"{groups_with_base} Gruppe{'n' if groups_with_base > 1 else ''} mit {base} Team{'s' if base > 1 else ''}")
+    if groups_with_extra > 0:
+        lines.append(f"und {groups_with_extra} Gruppe{'n' if groups_with_extra > 1 else ''} mit {base + 1} Team{'s' if base + 1 > 1 else ''}")
+
+    return "\n".join(lines)
+
+
 def get_default_court_assignments(groups: Dict[str, Group], available_courts: List[int]) -> Dict[str, List[int]]:
     """
     Gibt die Standard-Zuweisung zurück:
@@ -435,33 +459,45 @@ def ui_basic_settings(num_teams: int) -> int:
     """Grundlegende Turnier-Einstellungen (Teams, Felder, Zeit, Gruppen)"""
     st.metric(label="Anzahl Teams", value=num_teams)
 
-    col1, col2 = st.columns(2)
+    cols = st.columns([15, 15, 70])
 
-    with col1:
-        num_groups = st.number_input(
-            "Anzahl der Gruppen",
-            min_value=1,
-            max_value=max(DEFAULT_GROUPS, len(st.session_state["selected_courts"])),
-            value=st.session_state.get("num_groups", DEFAULT_GROUPS),
+    with cols[0]:
+        groups_size = st.number_input(
+            "Wie viele Teams sollen in einer Gruppe sein?",
+            min_value=3,
+            max_value=6,
+            value=4,
             step=1,
-            key="num_groups"
+            key="groups_max"
         )
 
-        # ✅ Nur neu berechnen, wenn sich num_groups geändert hat
+        num_groups = math.ceil(num_teams / groups_size)
+
+        num_courts = len(st.session_state["selected_courts"])
+
+        if num_groups > num_courts:
+            st.warning(f"Es soll {num_groups} Gruppen geben, aber es gibt nur {num_courts} Felder.")
+
+        # Nur neu berechnen, wenn sich num_groups geändert hat
         if "num_groups" not in st.session_state or st.session_state["num_groups"] != num_groups:
             st.session_state["num_groups"] = num_groups
-            st.session_state["group_size"] = math.ceil(num_teams / num_groups)
+            st.session_state["group_size"] = groups_size
             st.session_state["groups"] = {}
             if "court_assignments" in st.session_state:
-                existing_groups = set(f"G{i+1}" for i in range(num_groups))
-                stored_groups = set(st.session_state["court_assignments"].keys())
-                for group_name in stored_groups - existing_groups:
-                    del st.session_state["court_assignments"][group_name]
+                st.session_state["court_assignments"] = {}
 
-    with col2:
+    with cols[1]:
         start_time = st.time_input(
             "Startzeit", value=datetime.time(10, 0), key="start_time"
         )
+
+    with cols[2]:
+        if num_groups:
+            st.markdown("")
+            text = get_text_msg_for_groups(num_teams, num_groups)
+            st.markdown(
+                f"<div style='display:flex; align-items:flex-end; justify-content:flex-start; height:38px; padding-left:10px;'><strong>{text}</strong></div>",
+                unsafe_allow_html=True)
 
     return num_groups
 
