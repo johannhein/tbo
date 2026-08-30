@@ -229,7 +229,7 @@ class Stage:
     results: Dict[str, Any] = field(default_factory=dict)  # z. B. Platzierungen, Gewinner
 
     @property
-    def table(self) -> pd.DataFrame:
+    def table(self) -> pd.DataFrame | None:
         """
         Erstellt eine Gesamttabelle für die Stage, sortiert nach:
         1. Platzierung in der Gruppe
@@ -237,68 +237,96 @@ class Stage:
         3. Sätze-Differenz
         4. Kleine Punkte
         """
-        team_data = self._collect_team_data()
-        if not team_data:
-            return pd.DataFrame(columns=["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"])
+        if self.type == StageType.GROUP:
+            team_data = self._collect_team_data()
+            if not team_data:
+                return pd.DataFrame(columns=["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"])
 
-        df = pd.DataFrame(team_data)
+            df = pd.DataFrame(team_data)
 
-        def parse_sets(sets_str: str) -> int:
-            try:
-                won, lost = map(int, sets_str.split(":"))
-                return won - lost
-            except:
-                return 0
+            def parse_sets(sets_str: str) -> int:
+                try:
+                    won, lost = map(int, sets_str.split(":"))
+                    return won - lost
+                except:
+                    return 0
 
-        df["Sätze-Diff"] = df["Sätze"].apply(parse_sets)
+            df["Sätze-Diff"] = df["Sätze"].apply(parse_sets)
 
-        # Sortieren: Platzierung → Punkte → Sätze-Diff → Kleine Punkte
-        df = df.sort_values(
-            by=["Platzierung", "Punkte", "Sätze-Diff", "Kleine Punkte"],
-            ascending=[True, False, False, False]
-        ).reset_index(drop=True)
+            # Sortieren: Platzierung → Punkte → Sätze-Diff → Kleine Punkte
+            df = df.sort_values(
+                by=["Platzierung", "Punkte", "Sätze-Diff", "Kleine Punkte"],
+                ascending=[True, False, False, False]
+            ).reset_index(drop=True)
 
-        # Rang neu setzen
-        df["Rang"] = range(1, len(df) + 1)
+            # Rang neu setzen
+            df["Rang"] = range(1, len(df) + 1)
 
-        # Spaltenreihenfolge
-        return df[["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"]]
+            # Spaltenreihenfolge
+            return df[["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"]]
+        else:
+            return None
 
     @property
-    def placement_tables(self) -> Dict[int, pd.DataFrame]:
+    def placement_tables(self) -> Dict[int, pd.DataFrame] | None:
         """
         Gibt ein Dictionary mit Tabellen für jede Platzierung zurück:
         - key: Platzierung (1, 2, 3, ...)
         - value: pd.DataFrame mit allen Teams, die diese Platzierung in ihrer Gruppe erreicht haben
         """
-        team_data = self._collect_team_data()
-        if not team_data:
-            return {}
+        if self.type == StageType.GROUP:
+            team_data = self._collect_team_data()
+            if not team_data:
+                return {}
 
-        df = pd.DataFrame(team_data)
+            df = pd.DataFrame(team_data)
 
-        # Sortiere nach Platzierung
-        df = df.sort_values("Platzierung")
+            # Sortiere nach Platzierung
+            df = df.sort_values("Platzierung")
 
-        placement_tables = {}
+            placement_tables = {}
 
-        # Für jede Platzierung
-        for rank in df["Platzierung"].unique():
-            subset = df[df["Platzierung"] == rank].copy()
-            subset = subset.sort_values(
-                by=["Punkte", "Sätze", "Kleine Punkte"],
-                ascending=[False, False, False]
-            ).reset_index(drop=True)
+            # Für jede Platzierung
+            for rank in df["Platzierung"].unique():
+                subset = df[df["Platzierung"] == rank].copy()
+                subset = subset.sort_values(
+                    by=["Punkte", "Sätze", "Kleine Punkte"],
+                    ascending=[False, False, False]
+                ).reset_index(drop=True)
 
-            # Rang innerhalb der Platzierung neu setzen
-            subset["Rang"] = range(1, len(subset) + 1)
+                # Rang innerhalb der Platzierung neu setzen
+                subset["Rang"] = range(1, len(subset) + 1)
 
-            # Spaltenreihenfolge
-            subset = subset[["Rang", "Team", "Gruppe", "Punkte", "Sätze", "Kleine Punkte"]]
+                # Spaltenreihenfolge
+                subset = subset[["Rang", "Team", "Gruppe", "Punkte", "Sätze", "Kleine Punkte"]]
 
-            placement_tables[rank] = subset
+                placement_tables[rank] = subset
 
-        return placement_tables
+            return placement_tables
+        else:
+            return None
+
+    @property
+    def winner(self) -> List[str] | None:
+        if self.type != StageType.GROUP and self.match_list:
+            winner_teams = []
+            for match in self.match_list:
+                winner_teams.append(match.winner)
+
+            return winner_teams
+        else:
+            return None
+
+    @property
+    def loser(self) -> List[str] | None:
+        if self.type != StageType.GROUP and self.match_list:
+            loser_teams = []
+            for match in self.match_list:
+                loser_teams.append(match.loser)
+
+            return loser_teams
+        else:
+            return None
 
     def _collect_team_data(self) -> List[Dict[str, Any]]:
         """Sammelt alle Teams aus allen Gruppen mit ihren Statistiken."""
