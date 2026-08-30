@@ -15,7 +15,6 @@ with con as conn:
         create_table_and_fill(conn)
 
 
-
 # ----------------------------------------------------------------------
 # Page‑Config & Header‑Bild
 # ----------------------------------------------------------------------
@@ -114,12 +113,12 @@ tab_names = [
     "⚙️ Voreinstellungen",
     "⚙️ Neues Turnier",
     "📋 Vorrunde",
-    "🏟️ Felder",
-    "📊 Gruppen‑Ranglisten",
-    "🥇 Finalrunde",
-    "🏅 Endstand",
-    "👤 Team‑Ansicht",
-    "⚙️ Admin",
+    # "🏟️ Felder",
+    # "📊 Gruppen‑Ranglisten",
+    # "🥇 Finalrunde",
+    # "🏅 Endstand",
+    # "👤 Team‑Ansicht",
+    # "⚙️ Admin",
 ]
 tabs = st.tabs(tab_names)
 
@@ -129,15 +128,3 @@ with tabs[1]:
     tab_new_tournament()
 with tabs[2]:
     tab_group_stage()
-# with tabs[2]:
-#     pages.tab_courts()
-# with tabs[3]:
-#     pages.tab_rankings()
-# with tabs[4]:
-#     pages.tab_finals()
-# with tabs[5]:
-#     pages.tab_overview()
-# with tabs[6]:
-#     pages.tab_team_view()
-# with tabs[7]:
-#     pages.tab_admin()
