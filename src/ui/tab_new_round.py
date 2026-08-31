@@ -5,7 +5,7 @@ from config import UI_TO_MATCH_MODE, MATCH_MODE_TO_UI
 from config.constants import DEFAULT_TIEBREAK, DEFAULT_POINTS
 from core import Stage
 from core.models import StageType, MatchSettings
-from utils import match_making_direct
+from utils import match_making_direct, match_making_cross
 
 
 def _init_session_state():
@@ -27,7 +27,7 @@ def init_session_state_keys(keys: Dict):
         if k not in st.session_state:
             if k == keys["game_modes"]:
                 st.session_state[k] = {}
-            elif k == keys["teams_list"]:
+            elif k == keys["teams_list"] or k == keys["teams1_list"] or k == keys["teams2_list"]:
                 st.session_state[k] = []
             elif k == keys["courts"]:
                 st.session_state[k] = []
@@ -110,6 +110,8 @@ def render_round_config(round_idx: int, tournament):
         "place_t2": f"round_{round_idx}_place_t2",
         "courts": f"courts_{round_idx}",
         "teams_list": f"teams_list_{round_idx}",
+        "teams1_list": f"teams1_list{round_idx}",
+        "teams2_list": f"teams2_list{round_idx}",
         "stage_name": f"stage_name_{round_idx}",
         "points_complete": f"points_complete_{round_idx}",
         "modus_complete": f"modus_complete_{round_idx}",
@@ -120,7 +122,6 @@ def render_round_config(round_idx: int, tournament):
         "game_modes": f"game_modes_{round_idx}",
         "stage": f"stage{round_idx}",
         "stage_ready": f"stage_ready{round_idx}",
-
     }
 
     init_session_state_keys(keys=keys)
@@ -202,6 +203,9 @@ def render_round_config(round_idx: int, tournament):
                     options=place_keys,
                     key=keys["place_t1"]
                 )
+                if place_t1 in place_keys:
+                    list_teams1 = tournament.stages[stage_t1].placement_tables[place_t1].sort_values(by=["Gruppe"])["Team"].tolist()
+                    st.session_state[keys["teams1_list"]] = list_teams1
             else:
                 place_t1 = None
 
@@ -219,6 +223,9 @@ def render_round_config(round_idx: int, tournament):
                     options=place_keys,
                     key=keys["place_t2"]
                 )
+                if place_t2 in place_keys:
+                    list_teams2 = tournament.stages[stage_t2].placement_tables[place_t2].sort_values(by=["Gruppe"])["Team"].tolist()
+                    st.session_state[keys["teams2_list"]] = list_teams2
             else:
                 place_t2 = None
 
@@ -271,8 +278,8 @@ def render_round_config(round_idx: int, tournament):
                 match_settings: MatchSettings = st.session_state[keys["game_modes"]]["complete"]
             if round_type == "Direkte Spiele":
                 match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings)
-            elif round_type == "Direkte Spiele":
-                match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings)
+            elif round_type == "Überkreuzspiele":
+                match_list = match_making_cross(teams_1=list_teams1, teams_2=list_teams2, courts=courts, settings=match_settings)
             stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
             st.session_state[keys["stage"]] = stage
             st.session_state[keys["stage_ready"]] = True
