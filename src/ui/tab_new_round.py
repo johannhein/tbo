@@ -1,10 +1,13 @@
+from typing import Dict
 import streamlit as st
 
+from config import UI_TO_MATCH_MODE, MATCH_MODE_TO_UI
+from config.constants import DEFAULT_TIEBREAK, DEFAULT_POINTS
 from core import Stage
-from core.models import StageType
+from core.models import StageType, MatchSettings
+from utils import match_making_direct
 
 
-# --- 2. Zustand initialisieren ---
 def _init_session_state():
     """Initialisiert Session-State für die Rundenkonfiguration."""
     if "next_round_generated" not in st.session_state:
@@ -14,34 +17,84 @@ def _init_session_state():
     if "num_rounds" not in st.session_state:
         st.session_state.num_rounds = 1
 
+    if "tournament" not in st.session_state:
+        st.session_state.tournament = None
 
-# --- 3. Prüfe, ob Turnier geladen ist ---
+
+def init_session_state_keys(keys: Dict):
+    """Initialisiert alle session_state-Keys."""
+    for k in keys.values():
+        if k not in st.session_state:
+            if k == keys["game_modes"]:
+                st.session_state[k] = {}
+            elif k == keys["teams_list"]:
+                st.session_state[k] = []
+            elif k == keys["courts"]:
+                st.session_state[k] = []
+            elif k == keys["stage_name"]:
+                st.session_state[k] = "Zwischenrunde"
+            elif k in keys["tiebreak_complete"]:
+                st.session_state[k] = DEFAULT_TIEBREAK
+            elif k in keys["points_complete"]:
+                st.session_state[k] = DEFAULT_POINTS
+            elif k in keys["stage_ready"]:
+                st.session_state[k] = False
+            else:
+                st.session_state[k] = None
+
+
+def render_stage_preview(stage: Stage):
+    """
+    Zeigt eine aufklappbare Vorschau der aktuellen Runde an.
+
+    """
+    stage_name = stage.id
+    if not stage_name:
+        st.warning("Kein Rundenname gesetzt.")
+        return
+
+    if not stage:
+        st.warning("Keine Runde vorhanden.")
+        return
+
+    with st.expander(f"📋 Vorschau: Runde {stage_name}"):
+        st.write(f"**`{stage.id}`**")
+        match_count = len(stage.match_list) if stage.match_list else 0
+        st.write(f"**Anzahl an Spielen:** {match_count}")
+
+        if stage.match_list:
+            st.write("### Spiele:")
+            for match in stage.match_list:
+                st.markdown(f"""
+                - **Spiel {match.id}**  auf Feld {match.court} **{match.t1}** vs **{match.t2}** 
+                Schiedsrichter: {match.ref or '—'}
+                """)
+        else:
+            st.write("Keine Matches erstellt.")
+
+
 def validate_tournament() -> bool:
     """Prüft, ob ein Turnier im Session-State vorhanden ist."""
-    if "tournament" not in st.session_state:
+    if "tournament" not in st.session_state or st.session_state.tournament is None:
         st.error("❌ Kein Turnier geladen! Bitte erst ein Turnier erstellen.")
         return False
     return True
 
 
-# --- 4. Button: Weitere Runde hinzufügen ---
 def render_round_controls():
     """Zeigt den Button zum Hinzufügen neuer Runden an."""
     if st.button("Weitere Runde einstellen", key="add_round"):
         st.session_state.num_rounds += 1
 
 
-# --- 5. Zeige alle Runden-Configs an ---
 def render_round_configs(tournament):
     """Erstellt dynamisch die Runden-Configs basierend auf num_rounds."""
     st.session_state.next_round_matches = []
     for i in range(st.session_state.num_rounds):
-        config = render_round_config(i, tournament)
-        st.session_state.next_round_matches.append(config)
+        render_round_config(i, tournament)
 
 
-# --- 6. Einzelne Runde rendern ---
-def render_round_config(round_idx: int, tournament) -> dict:
+def render_round_config(round_idx: int, tournament):
     """Zeigt ein einzelnes Runden-Setup mit dynamischen Keys an."""
     st.subheader(f"Runde {round_idx + 1}")
 
@@ -58,12 +111,19 @@ def render_round_config(round_idx: int, tournament) -> dict:
         "courts": f"courts_{round_idx}",
         "teams_list": f"teams_list_{round_idx}",
         "stage_name": f"stage_name_{round_idx}",
+        "points_complete": f"points_complete_{round_idx}",
+        "modus_complete": f"modus_complete_{round_idx}",
+        "tiebreak_complete": f"tiebreak_complete_{round_idx}",
+        "points_incomplete": f"points_incomplete_{round_idx}",
+        "modus_incomplete": f"modus_incomplete_{round_idx}",
+        "tiebreak_incomplete": f"tiebreak_incomplete_{round_idx}",
+        "game_modes": f"game_modes_{round_idx}",
+        "stage": f"stage{round_idx}",
+        "stage_ready": f"stage_ready{round_idx}",
+
     }
 
-    # Zustand initialisieren
-    for k in keys.values():
-        if k not in st.session_state:
-            st.session_state[k] = None
+    init_session_state_keys(keys=keys)
 
     # UI: Auswahl
     cols = st.columns(5)
@@ -77,7 +137,7 @@ def render_round_config(round_idx: int, tournament) -> dict:
 
         courts = st.multiselect(
             "Verfügbare Felder",
-            options=tournament.courts,
+            options=tournament.courts or [1, 2],
             key=keys["courts"],
             placeholder="Verfügbare Felder für die Runde wählen …"
         )
@@ -89,23 +149,22 @@ def render_round_config(round_idx: int, tournament) -> dict:
                 options=["x. Plätze vs. y. Platz", "Platz x bis y aus Gesamtranking"],
                 key=keys["opponent_logic_choice"]
             )
-            stage_direct = st.session_state[keys["stage_direct"]]
-            place_direct = st.session_state[keys["place_direct"]]
+            stage_direct = st.session_state.get(keys["stage_direct"], None)
+            place_direct = st.session_state.get(keys["place_direct"], None)
         elif round_type == "Direkte Spiele":
             stage_direct = st.selectbox(
                 "Aus welcher Runde sollen die Teams kommen?",
                 options=list(tournament.stages.keys()),
                 key=keys["stage_direct"]
             )
-            place_direct = st.session_state[keys["place_direct"]]
+            place_direct = st.session_state.get(keys["place_direct"], None)
         else:
-            opponent_logic_choice = st.session_state[keys["opponent_logic_choice"]]
-            stage_direct = st.session_state[keys["stage_direct"]]
-            place_direct = st.session_state[keys["place_direct"]]
+            opponent_logic_choice = st.session_state.get(keys["opponent_logic_choice"], None)
+            stage_direct = st.session_state.get(keys["stage_direct"], None)
+            place_direct = st.session_state.get(keys["place_direct"], None)
 
         stage_name = st.text_input(
             label="Name der Runde:",
-            value="Zwischenrunde",  # ← Dieser Wert wird angezeigt
             placeholder="Gib deinen Namen ein...",
             key=keys["stage_name"]
         )
@@ -123,15 +182,14 @@ def render_round_config(round_idx: int, tournament) -> dict:
             if place_direct in place_keys:
                 list_teams = stage.placement_tables[place_direct].sort_values(by=["Gruppe"])["Team"].tolist()
                 if len(list_teams) % 2 != 0:
-                    st.warning("Die ausgewählte Anzahl an Teams in ungerade.")
+                    st.warning("Die ausgewählte Anzahl an Teams ist ungerade.")
                 st.session_state[keys["teams_list"]] = list_teams
-                # st.success(list_teams)
-
+            else:
+                st.session_state[keys["teams_list"]] = []
         else:
-            place_direct = None
+            st.session_state[keys["teams_list"]] = []
 
-        # Wenn "x. Plätze vs. y. Platz" ausgewählt ist
-        if st.session_state[keys["opponent_logic_choice"]] == "x. Plätze vs. y. Platz":
+        if st.session_state.get(keys["opponent_logic_choice"]) == "x. Plätze vs. y. Platz":
             stage_t1 = st.selectbox(
                 "Aus welcher Runde kommt Team 1",
                 options=list(tournament.stages.keys()),
@@ -147,13 +205,8 @@ def render_round_config(round_idx: int, tournament) -> dict:
             else:
                 place_t1 = None
 
-        # if st.button(f"✅ Stage Speichern"):
-        #     stage_name = st.session_state[keys["stage_name"]]
-        #     tournament.stages[stage_name] = Stage(id=stage_name, type=StageType.KNOCKOUT, teams=st.session_state[keys["teams_list"]])
-        #     # st.success(tournament.stages[stage_name])
-
     with cols[3]:
-        if st.session_state[keys["opponent_logic_choice"]] == "x. Plätze vs. y. Platz":
+        if st.session_state.get(keys["opponent_logic_choice"]) == "x. Plätze vs. y. Platz":
             stage_t2 = st.selectbox(
                 "Aus welcher Runde kommt Team 2",
                 options=list(tournament.stages.keys()),
@@ -169,20 +222,66 @@ def render_round_config(round_idx: int, tournament) -> dict:
             else:
                 place_t2 = None
 
-    # Rückgabe der Konfiguration
-    return {
-        "type": round_type,
-        "opponent_logic": st.session_state[keys["opponent_logic_choice"]],
-        "stage_direct": st.session_state[keys["stage_direct"]],
-        "place_direct": st.session_state[keys["place_direct"]],
-        "stage_t1": st.session_state[keys["stage_t1"]],
-        "place_t1": st.session_state[keys["place_t1"]],
-        "stage_t2": st.session_state[keys["stage_t2"]],
-        "place_t2": st.session_state[keys["place_t2"]],
-        "teams_list": st.session_state[keys["teams_list"]],
-        "courts": st.session_state[keys["courts"]],
-        "stage_name": st.session_state[keys["stage_name"]],
-    }
+    cols = st.columns(5)
+    with cols[0]:
+        sets_complete = st.selectbox(
+            "Welcher Modus soll gespielt werden",
+            options=list(MATCH_MODE_TO_UI.values()),
+            key=keys["modus_complete"],
+        )
+    with cols[1]:
+        points_complete = st.number_input(
+            "Punkte",
+            min_value=1,
+            max_value=99,
+            step=1,
+            key=keys["points_complete"],
+        )
+    with cols[2]:
+        if sets_complete in ["2 Gewinnsätze", "3 Gewinnsätze"]:
+            tiebreak_complete = st.number_input(
+                "Tiebreak‑Punkte",
+                min_value=1,
+                max_value=99,
+                step=1,
+                key=keys["tiebreak_complete"],
+            )
+        else:
+            tiebreak_complete = None
+
+        if keys["game_modes"] not in st.session_state:
+            st.session_state[keys["game_modes"]] = {}
+
+        if sets_complete:
+            st.session_state[keys["game_modes"]]["complete"] = {
+                "modus": UI_TO_MATCH_MODE[sets_complete],
+                "points": points_complete,
+                "tiebreak": tiebreak_complete,
+            }
+
+    with cols[4]:
+        st.write("")
+        if st.button(f"✅ Runde bestätigen"):
+            stage_name = st.session_state[keys["stage_name"]]
+            teams = st.session_state[keys["teams_list"]]
+            if round_type == "Gruppenphase":
+                stage_typ: StageType = StageType.GROUP
+            else:
+                stage_typ: StageType = StageType.NONGROUP
+                match_settings: MatchSettings = st.session_state[keys["game_modes"]]["complete"]
+            if round_type == "Direkte Spiele":
+                match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings)
+            elif round_type == "Direkte Spiele":
+                match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings)
+            stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
+            st.session_state[keys["stage"]] = stage
+            st.session_state[keys["stage_ready"]] = True
+            tournament.stages[stage_name] = Stage(id=stage_name, type=stage_typ, teams=teams)
+
+            st.success(f"✅ Runde '{stage_name}' wurde erstellt.")
+
+    if st.session_state[keys["stage_ready"]]:
+        render_stage_preview(stage=stage)
 
 
 # --- 7. Button: Runden generieren ---
@@ -192,6 +291,7 @@ def render_round_generation(tournament):
         st.session_state.next_round_generated = True
         st.success(f"✅ {len(st.session_state.next_round_matches)} Runden wurden konfiguriert.")
         print(tournament.stages.keys())
+
 
 def tab_new_round():
     st.header("Nächste Runde Konfigurator")
