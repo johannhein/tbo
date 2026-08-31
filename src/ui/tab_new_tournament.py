@@ -143,7 +143,7 @@ def split_clubs(verein: str) -> List[str]:
     return [club.strip().lower() for club in str(verein).split("/") if club.strip()]
 
 
-def create_groups(group_df: pd.DataFrame,  selected_names: List[str], num_groups: int,
+def create_groups(group_df: pd.DataFrame, selected_names: List[str], num_groups: int,
                   group_size: int,) -> Dict[str, Group]:
     """
     Erstellt Gruppen mit gleichmäßiger Verteilung und berücksichtigt:
@@ -212,8 +212,7 @@ def create_groups(group_df: pd.DataFrame,  selected_names: List[str], num_groups
         possible_groups = [
             grp_name
             for grp_name in group_names
-            if not any(verein in assigned_club_per_group[grp_name] for verein in vereine)
-            and len(groups[grp_name].teams) < group_dict[grp_name]
+            if not any(verein in assigned_club_per_group[grp_name] for verein in vereine) and len(groups[grp_name].teams) < group_dict[grp_name]
         ]
 
         if not possible_groups:
@@ -532,7 +531,7 @@ def ui_show_groups(groups: Dict[str, Group], group_df: pd.DataFrame) -> None:
     group_names = list(groups.keys())
     for i in range(0, len(group_names), 4):
         cols = st.columns(4)
-        for j, name in enumerate(group_names[i : i + 4]):
+        for j, name in enumerate(group_names[i:i + 4]):
             with cols[j]:
                 grp = groups[name]
                 st.markdown(f"### 🟦 **Gruppe {name}**")
@@ -568,7 +567,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
             )
 
     # UI‑Werte (Strings, ints) für die Selectboxen / Number‑Inputs
-    complete_ui   = settings_to_ui_values(game_mode["complete"])
+    complete_ui = settings_to_ui_values(game_mode["complete"])
     incomplete_ui = settings_to_ui_values(game_mode["incomplete"])
 
     # Einstellungen für vollständige Gruppen

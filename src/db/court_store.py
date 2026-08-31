@@ -19,6 +19,7 @@ def get_used_courts(exclude_tournament: str | None = None) -> Set[int]:
             cur.execute("SELECT court FROM tournament_courts")
         return {row[0] for row in cur.fetchall()}
 
+
 def set_courts(tournament_id: str, courts: List[int]) -> None:
     """
     Überschreibt die Feld‑Liste für ein bestimmtes Turnier.
@@ -34,6 +35,7 @@ def set_courts(tournament_id: str, courts: List[int]) -> None:
             [(tournament_id, c) for c in courts],
         )
         con.commit()
+
 
 def remove_tournament(tournament_id: str) -> None:
     """Entfernt sämtliche Einträge eines Turniers (z. B. beim Löschen)."""

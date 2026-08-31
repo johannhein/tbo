@@ -11,13 +11,12 @@ from config.constants import MIN_DIFF
 MatchID = int
 StageID = str
 
-# -------------------------------------------------
+
 # Enums
-# -------------------------------------------------
 class MatchStatus(Enum):
     """Zustand eines Matches im Turnier."""
-    PENDING   = auto()   # noch nicht gestartet / keine Sätze
-    FINISHED  = auto()   # Sieger ermittelt
+    PENDING = auto()   # noch nicht gestartet / keine Sätze
+    FINISHED = auto()   # Sieger ermittelt
     CANCELLED = auto()   # abgesagt (z. B. wegen Verletzung)
 
 
@@ -25,12 +24,14 @@ class StageType(Enum):
     GROUP = "group"
     NONGROUP = "nongroup"
 
+
 class MatchMode(Enum):
     BEST_OF_3 = "2 Gewinnsätze"
     BEST_OF_5 = "3 Gewinnsätze"
     SETS_3 = "3 Sätze"
     SETS_2 = "2 Sätze"
     SETS_1 = "1 Satz"
+
 
 # Mapping für die Spielpläne
 MATCH_MODE_TO_SETS = {
@@ -41,9 +42,8 @@ MATCH_MODE_TO_SETS = {
     MatchMode.BEST_OF_5: ["1. Satz", "2. Satz", "3. Satz", "4. Satz", "5. Satz"],
 }
 
-# -------------------------------------------------
+
 # Dataclasses
-# -------------------------------------------------
 @dataclass
 class Match:
     id: MatchID
@@ -126,7 +126,7 @@ class Match:
         else:
             min_advantage = 1
         if abs(p1 - p2) < min_advantage:
-            raise ValueError( f"Ein Satz muss mindestens {min_advantage} Punkt/Punkte Vorsprung haben. Ergebnis: {p1}:{p2}")
+            raise ValueError(f"Ein Satz muss mindestens {min_advantage} Punkt/Punkte Vorsprung haben. Ergebnis: {p1}:{p2}")
         if set_num > num_sets:
             raise ValueError(f"Das Match hat maximal nur {str(num_sets)} Satz/Sätze.")
         if not self.settings.tiebreak or num_sets > set_num:
@@ -135,7 +135,6 @@ class Match:
         if self.settings.tiebreak and num_sets == set_num:
             if not (p1 >= self.settings.tiebreak or p2 >= self.settings.tiebreak):
                 raise ValueError(f"Kein Team hat die erforderlichen {self.settings.tiebreak} Punkte im {set_num}. Satz erreicht. Ergebnis: {p1}:{p2}")
-
 
     @classmethod
     def create(cls, match_id: int, court: int, t1: str, t2: str, ref: Optional[str] = None,

@@ -5,14 +5,11 @@ import streamlit as st
 from db.court_store import get_connection
 from db.days_store import load_table, delete_row, upsert_row
 
-# ----------------------------------------------------------------------
 # Streamlit‑Konfiguration
-# ----------------------------------------------------------------------
 st.set_page_config(page_title="Tournament Days Editor", layout="wide")
 
-# ----------------------------------------------------------------------
+
 # Cache‑Wrapper
-# ----------------------------------------------------------------------
 @st.cache_data(ttl=300)
 def get_cached_data() -> pd.DataFrame:
     """Lädt die Daten (cached) – kümmert sich selbst um die Connection."""
@@ -41,22 +38,16 @@ def find_day_court_conflicts(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["type"].isin(conflict_types)]
 
 
-def detect_changes( original: pd.DataFrame, edited: pd.DataFrame) -> tuple[list[pd.Series], list[str]]:
+def detect_changes(original: pd.DataFrame, edited: pd.DataFrame) -> tuple[list[pd.Series], list[str]]:
     merged = edited.merge(original[["type"]], on="type", how="left", indicator=True)
     to_upsert = edited[merged["_merge"] != "right_only"]
     to_delete = original[~original["type"].isin(edited["type"])]["type"].tolist()
     return list(to_upsert.itertuples(index=False, name=None)), to_delete
 
 
-# ----------------------------------------------------------------------
-# Tab
-# ----------------------------------------------------------------------
 def tab_presets() -> None:
     st.header("Voreinstellungen")
 
-    # --------------------------------------------------------------
-    # 2.1  CSS‑Block
-    # --------------------------------------------------------------
     st.markdown(
         """
         <style>
@@ -74,23 +65,18 @@ def tab_presets() -> None:
     with cols[0]:
         st.selectbox(
             "Anzahl der verfügbaren Felder",
-            options=range(1, 20),  # Zahlen von 1 bis 30
+            options=range(1, 20),
             index=15,
             key="max_courts_num"
         )
 
-
-    # --------------------------------------------------------------
-    # 2.2  Container
-    # --------------------------------------------------------------
+    # Container
     with st.container():
         st.markdown('<div class="centered-table">', unsafe_allow_html=True)
 
         df_original = get_cached_data()
 
-        # ----------------------------------------------------------
-        # 2.4  Data‑Editor
-        # ----------------------------------------------------------
+        # Data‑Editor
         st.subheader("📋 Allgemeine Daten")
 
         cols = st.columns(2)
@@ -130,9 +116,9 @@ def tab_presets() -> None:
             st.caption(
                 """
                 • **Turnier**: `Tunier` muss eindeutig sein und den Turnieren in der Anmeldung entsprechen.
-                • **Zeilen hinzufügen / entfernen**: Plus‑/Minus‑Symbol unten im Editor.  
-                • **Felder**: Zum Zuweisen zwei Mal in die Zelle klicken.  
-                • **Änderungen erst wirksam** nach Klick auf **„Änderungen speichern“**.  
+                • **Zeilen hinzufügen / entfernen**: Plus‑/Minus‑Symbol unten im Editor.
+                • **Felder**: Zum Zuweisen zwei Mal in die Zelle klicken.
+                • **Änderungen erst wirksam** nach Klick auf **„Änderungen speichern“**.
                 """
             )
 
@@ -157,16 +143,11 @@ def tab_presets() -> None:
                 if len(overlap) > 1:
                     st.warning(f"⚠️ Die Felder {", ".join(sorted(overlap))} sind schon vom {row['type']} Turnier belegt.")
 
-        # ----------------------------------------------------------
-        # 2.5  Änderungen erkennen
-        # ----------------------------------------------------------
+        # Änderungen erkennen
         to_upsert, to_delete = detect_changes(df_original, edited_df)
 
-        # ----------------------------------------------------------
-        # 2.6  Änderungen speichern
-        # ----------------------------------------------------------
+        # Änderungen speichern
         if st.button("💾  Änderungen speichern", type="primary"):
-            # 1️⃣  Löschungen
             for typ in to_delete:
                 try:
                     delete_row(typ)
@@ -174,7 +155,6 @@ def tab_presets() -> None:
                 except sqlite3.Error as e:
                     st.error(f"❌ Fehler beim Löschen von `{typ}`: {e}")
 
-            # 2️⃣  Inserts / Updates
             for row in to_upsert:
                 # row ist ein Tupel (type, day, height, courts) – courts ist bereits List[str]
                 try:
@@ -184,11 +164,7 @@ def tab_presets() -> None:
                 except sqlite3.Error as e:
                     st.error(f"❌ Fehler beim Speichern von `{row[0]}`: {e}")
 
-            # Cache leeren und UI neu laden
             st.cache_data.clear()
-            st.rerun()                         # <-- neuer Aufruf (statt experimental_rerun)
+            st.rerun()
 
-        # ----------------------------------------------------------
-        # 2.7  Container schließen
-        # ----------------------------------------------------------
         st.markdown("</div>", unsafe_allow_html=True)

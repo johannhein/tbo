@@ -5,10 +5,10 @@ IMG_PATH: Path = ASSETS_DIR / "images/header.jpg"
 
 DATA_DIR: Path = Path("data")
 PICKLE_DIR = DATA_DIR / "pickle"
-IMPORT_DIR: Path = DATA_DIR /"import"
+IMPORT_DIR: Path = DATA_DIR / "import"
 TEMPLATE_DIR: Path = ASSETS_DIR / "templates"
 EXPORT_DIR: Path = DATA_DIR / "export"
-DB_PATH : Path = DATA_DIR / "tournament_db.db"
+DB_PATH: Path = DATA_DIR / "tournament_db.db"
 
 SQL_SCHEMA_PATH: Path = Path("src/config/schema.sql")
 
@@ -28,7 +28,7 @@ TOURNAMENT_DAYS = [
 ]
 
 DEFAULT_TIEBREAK = 11
-DEFAULT_POINTS   = 15
-DEFAULT_GROUP_SIZE   = 4
+DEFAULT_POINTS = 15
+DEFAULT_GROUP_SIZE = 4
 
 MIN_DIFF = True

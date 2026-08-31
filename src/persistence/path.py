@@ -27,8 +27,8 @@ def ensure_dir(folder: Union[str, Path], *, parents: bool = True, exist_ok: bool
     return path
 
 
-def list_files_with_suffix(folder: Union[str, Path], suffix: str, *, recursive: bool = False, 
-                           case_insensitive: bool = True,  as_strings: bool = False,) -> List[Union[Path, str]]:
+def list_files_with_suffix(folder: Union[str, Path], suffix: str, *, recursive: bool = False,
+                           case_insensitive: bool = True, as_strings: bool = False,) -> List[Union[Path, str]]:
     """
     Durchsucht folder nach Dateien, deren Name mit suffix endet.
 
