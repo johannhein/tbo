@@ -1,12 +1,11 @@
-import random
 from pathlib import Path
 from typing import List
 import streamlit as st
 import pandas as pd
 
 from config import ui_modus, format_modus, MATCH_MODE_TO_SETS
-from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR, NAME_PREROUND
-from core.models import Group, Tournament, MatchStatus, Match, MatchMode
+from config.constants import HIGHLIGHT_COLOR, EXPORT_DIR
+from core.models import Group, Tournament, MatchStatus, Match
 from db import load_tournament, get_all_tournament_names
 from scoring import process_match_scores
 from scoring.results import simulate_random_results
@@ -417,7 +416,7 @@ def tab_group_stage():
             display_group_row(group_names, i, selected_team)
 
         if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
-            stage_name = NAME_PREROUND
+            stage_name = "Vorrunde"
             export_stage(tournament=st.session_state["tournament"], stage_id=stage_name)
             stage = stage_name.lower().replace(" ", "_")
             path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower() / stage

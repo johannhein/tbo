@@ -6,7 +6,7 @@ from typing import List, Dict
 import streamlit as st
 import pandas as pd
 
-from config.constants import IMPORT_DIR, MAX_COURT_NUM, DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUPS, NAME_PREROUND
+from config.constants import IMPORT_DIR, MAX_COURT_NUM, DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE
 from db import save_tournament
 from db.court_store import get_used_courts, set_courts
 from db.days_store import get_courts_for_type
@@ -148,7 +148,7 @@ def create_groups(group_df: pd.DataFrame,  selected_names: List[str], num_groups
     """
     Erstellt Gruppen mit gleichmäßiger Verteilung und berücksichtigt:
     - Vereinsschutz (Groß-/Kleinschreibung wird ignoriert)
-    - Teams mit mehreren Vereinen (z. B. "Möllner SV/TSV Wandsetal") werden korrekt behandelt
+    - Teams mit mehreren Vereinen werden korrekt behandelt
     - Kopf-Teams werden zuerst zugewiesen
     - Teams mit Verein werden zuerst verteilt (mit Schutz)
     - Teams ohne Verein werden danach verteilt (ohne Schutz)
@@ -255,7 +255,7 @@ def create_groups(group_df: pd.DataFrame,  selected_names: List[str], num_groups
 
 
 def get_tournament_types(df: pd.DataFrame) -> List[str]:
-    """Alle eindeutigen Turnier‑Kategorien aus einer DataFrame."""
+    """Alle eindeutigen Turnier‑Kategorien aus einem DataFrame."""
     if "Turnier" not in df.columns:
         st.error("❗Die CSV‑Datei enthält keine Spalte **Turnier**.")
         return []
@@ -388,14 +388,13 @@ def ui_select_tournament_type(df):
             "group_size",
             "incomplete_groups",
             "max_court",
-            "selected_courts",  # ← wird neu gesetzt, aber auch hier sicherstellen
+            "selected_courts",
         ]
 
         for key in reset_keys:
             if key in st.session_state:
                 del st.session_state[key]
 
-        # ✅ Neue Kategorie → neue Felder
         st.session_state["selected_courts"] = get_courts_for_type(selected)
 
         st.rerun()
@@ -466,7 +465,7 @@ def ui_basic_settings(num_teams: int) -> int:
             "Wie viele Teams sollen in einer Gruppe sein?",
             min_value=3,
             max_value=6,
-            value=4,
+            value=DEFAULT_GROUP_SIZE,
             step=1,
             key="groups_max"
         )
@@ -478,7 +477,6 @@ def ui_basic_settings(num_teams: int) -> int:
         if num_groups > num_courts:
             st.warning(f"Es soll {num_groups} Gruppen geben, aber es gibt nur {num_courts} Felder.")
 
-        # Nur neu berechnen, wenn sich num_groups geändert hat
         if "num_groups" not in st.session_state or st.session_state["num_groups"] != num_groups:
             st.session_state["num_groups"] = num_groups
             st.session_state["group_size"] = groups_size
@@ -558,7 +556,6 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
         val = game_mode.get(key)
         if isinstance(val, dict):
             # Konvertiere das dict in ein MatchSettings‑Objekt
-            # Erwartete Schlüssel: "modus" (Enum‑oder String), "points", "tiebreak"
             modus_raw = val["modus"]
             if isinstance(modus_raw, str):
                 modus = UI_TO_MATCH_MODE[modus_raw]  # String → Enum
@@ -670,9 +667,7 @@ def tab_new_tournament() -> None:
         "complete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
         "incomplete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
     })
-    # -------------------------------------------------
     # CSV auswählen / laden
-    # -------------------------------------------------
     csv_path = ui_select_csv()
     if not csv_path:
         st.info("Bitte wähle eine CSV‑Datei aus oder lade sie hoch.")
@@ -680,9 +675,7 @@ def tab_new_tournament() -> None:
 
     df_all = load_csv(csv_path)
 
-    # -------------------------------------------------
     # Turnier‑Kategorie auswählen
-    # -------------------------------------------------
     col1, col2 = st.columns(2)
 
     with col1:
@@ -703,9 +696,7 @@ def tab_new_tournament() -> None:
     st.session_state["teams"] = df_category["team"]
     st.session_state["reset_df"] = df_category
 
-    # -------------------------------------------------
-    # Team‑Namen editieren
-    # -------------------------------------------------
+    # Teamliste editieren
     st.markdown("### ✏️ Zum Editieren der Teamliste")
     if "df_table" in st.session_state:
         df_category = st.session_state["df_table"]
@@ -714,10 +705,7 @@ def tab_new_tournament() -> None:
     num_teams = len(df_category)
     number_groups = ui_basic_settings(num_teams)
 
-    # -------------------------------------------------
     # Gruppen definieren
-    # -------------------------------------------------
-
     selected_names = ui_select_group_heads(df_category, max_selections=number_groups, )
 
     if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
@@ -762,21 +750,20 @@ def tab_new_tournament() -> None:
 
         court_assignments = st.session_state.get("court_assignments", {})
 
-        # ✅ Gruppen in Blöcken zu je 4 pro Zeile
+        # Gruppen in Blöcken zu je 4 pro Zeile anzeigen
         group_names = list(groups.keys())
         for i in range(0, len(group_names), 4):
             group_block = group_names[i: i + 4]
-            cols = st.columns(4)  # 4 Spalten pro Zeile
+            cols = st.columns(4)
 
             for j, name in enumerate(group_block):
                 with cols[j]:
-                    # ✅ Filtere ungültige Felder aus default
+                    # Filtere ungültige Felder aus default
                     current_courts = court_assignments.get(name, [])
                     valid_courts = [c for c in current_courts if c in selected_courts]
                     if len(valid_courts) != len(current_courts):
                         st.warning(f"⚠️ Ungültige Felder entfernt: {set(current_courts) - set(selected_courts)}")
 
-                    # ✅ Multiselect mit gültigem default
                     new_courts = st.multiselect(
                         f"Gruppe {name} – Felder",
                         options=selected_courts,
@@ -785,13 +772,10 @@ def tab_new_tournament() -> None:
                         placeholder="Felder auswählen …",
                     )
 
-                    # ✅ Speichere nur gültige Felder zurück
                     st.session_state["court_assignments"][name] = new_courts
 
-        # Summe der zugewiesenen Felder
         total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
 
-        # Warnung, wenn zu viele Felder zugewiesen
         if total_assigned > max_total_courts:
             st.warning(f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {max_total_courts} verfügbar!")
 
@@ -802,9 +786,7 @@ def tab_new_tournament() -> None:
         incomplete = [name for name, grp in groups.items() if not grp.complete]
         st.session_state["incomplete_groups"] = incomplete
 
-    # -------------------------------------------------
     # Spielmodi
-    # -------------------------------------------------
         ui_game_modes(incomplete)
         groups = st.session_state["groups"]
 
@@ -817,9 +799,7 @@ def tab_new_tournament() -> None:
 
         st.session_state["groups_final"] = groups
 
-    # -------------------------------------------------
     # Turnier erstellen
-    # -------------------------------------------------
     if st.button("Turnier erstellen", key="create_tournament_button", type="primary",):
         # Feldbelegungen speichern
         total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
@@ -845,23 +825,19 @@ def tab_new_tournament() -> None:
         name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
         tournament = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
         group_list: List[Group] = list(groups.values())
-        stage = Stage(id=NAME_PREROUND, type=StageType.GROUP, teams=st.session_state["teams"],
+        stage = Stage(id="Vorrunde", type=StageType.GROUP, teams=st.session_state["teams"],
                       groups=group_list)
 
         tournament.add_stage(stage)
         tournament.schedule_stage(stage.id)
 
         year = datetime.datetime.now().year
-        # filename = f"{tournament.type.lower()}_{str(year)}"
-        # save_tournament(tournament, filename)
         name = f"{tournament.type} {str(year)}"
         save_tournament(tournament, name)
 
         st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
 
-    # -------------------------------------------------
     # Aufräumen (temporäre Upload‑Datei)
-    # -------------------------------------------------
     if csv_path.name.startswith("tmp_"):
         try:
             csv_path.unlink(missing_ok=True)
