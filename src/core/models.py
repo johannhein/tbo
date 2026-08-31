@@ -23,10 +23,7 @@ class MatchStatus(Enum):
 
 class StageType(Enum):
     GROUP = "group"
-    KNOCKOUT = "knockout"
-    CROSSOVER = "crossover"
-    FINAL = "final"
-    PLAYOFF = "playoff"
+    NONGROUP = "nongroup"
 
 class MatchMode(Enum):
     BEST_OF_3 = "2 Gewinnsätze"
