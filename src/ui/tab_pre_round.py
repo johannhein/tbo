@@ -464,7 +464,7 @@ def tab_group_stage():
                 stage.table,
                 hide_index=True,
                 width='content',
-                height=1200,
+                height=len(stage.teams) * 34 + 50,
             )
 
         with cols[1]:
