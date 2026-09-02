@@ -8,10 +8,7 @@ from persistence import ensure_dir
 
 def render_tournament_overview_html(tournament: Tournament, stage_id: str, *, template_dir: str = TEMPLATE_DIR,
                                     header: str = TOURNAMENT_NAME, export_dir: Path = EXPORT_DIR) -> Path:
-    """
-    Rendert eine HTML-Datei mit einer Übersicht über alle Gruppen des Turniers.
-    Enthält: Turniername, Gruppenname, Feld, Mitgliederliste.
-    """
+    """Rendert eine HTML-Datei mit einer Übersicht über alle Gruppen des Turniers."""
     tournament_type = tournament.type.lower()
     export_path = Path(export_dir) / tournament_type
     ensure_dir(export_path)
