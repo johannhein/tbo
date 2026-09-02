@@ -33,22 +33,31 @@ Das Projekt befindet sich in der Entwicklung und ist noch nicht vollständig abg
 - Auswahl des Turniertyps
 - Bearbeitung der Teilnehmerliste (Hinzufügen, Löschen, Ändern)
 - **Automatische Gruppenbildung**:
-  - Festlegung der Anzahl der Gruppen
+  - Festlegung der Größe der Gruppen
   - Auswahl der Gruppenköpfe
   - Vereinsbasierte Verteilung: Teams aus demselben Verein werden, soweit möglich, in verschiedene Gruppen aufgeteilt
   - Automatische Zuweisung von Feldern zu Gruppen
 - Einstellung des Spielmodus für vollständige und unvollständige Gruppen
 
-### 1.2 Vorrunde
-- Nachträgliche Anpassung von Teams
+### 1.3 Vorrunde
+#### Übersicht
+- Auswahl des Turniers
+- Nachträgliche Anpassung der Gruppenverteilung
 - Berücksichtigung verspäteter Teams (spätere Spielzeiten)
 - Generierung von Spielprotokollen im HTML-Format (für Druck oder Weitergabe)
 
-### 1.3 Automatische Rangliste
-Genau nach offiziellen Volleyball-Regeln berechnet:
-1. Gewonnene Sätze (Punkte)
-2. Direkter Vergleich (bei Punktegleichstand)
-3. Punktdifferenz (alle erzielten Ballpunkte)
+#### Ergebnisse
+- Eintragen der Ergebnisse
+- Anzeigen der Tabellen für jede Gruppe
+
+#### Zusammenfassung
+- Übersichtsseite
+  - Gesamttabelle
+  - Eigene Tabellen für jede Platzierung
+
+#### Nächste Runde
+- Noch in Entwicklung
+- Konfiguration der nächsten Runden mit Übersicht
 
 ---
 
