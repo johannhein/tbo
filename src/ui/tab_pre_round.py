@@ -310,6 +310,181 @@ def plot_schedule(group: Group, selected_team: str):
         st.info("Noch keine Spielpaarungen erzeugt.")
 
 
+def render_button():
+    if st.button("Turnierübersicht generieren", key="create_overview", type="primary"):
+        stage_name = "Vorrunde"
+        export_overview(tournament=st.session_state["tournament"], stage_id=stage_name)
+        path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower()
+        st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
+
+    if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
+        stage_name = "Vorrunde"
+        export_stage(tournament=st.session_state["tournament"], stage_id=stage_name)
+        stage = stage_name.lower().replace(" ", "_")
+        path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower() / stage
+        st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
+
+
+def tab_overview():
+    options = get_all_tournament_names()
+
+    if not options:
+        st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Neues Turnier“).")
+        return
+
+    cols = st.columns(4)
+
+    with cols[0]:
+        st.selectbox(
+            "Turnier auswählen",
+            options=["-- keine Auswahl --"] + options,
+            index=0,
+            key="select_tournament"
+        )
+
+    with cols[1]:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 Zurücksetzen", key="reset_button"):
+            selected_tournament = st.session_state["selected_tournament"]
+            saved_tournament = load_tournament(selected_tournament)
+
+            if saved_tournament is None:
+                st.error("❌ Fehler beim Neuladen der Datei.")
+            else:
+                load_savestates(saved_tournament, selected_tournament)
+
+    initialize_tournament()
+
+    if not st.session_state.get("tournament_loaded"):
+        st.info("Kein Turnier geladen.")
+        return
+
+    group_names = list(st.session_state["groups"].keys())
+    all_teams = set()
+    for group in st.session_state["groups"].values():
+        for team in group.teams:
+            all_teams.add(str(team))
+
+    cols = st.columns(4)
+
+    with cols[0]:
+        team_a = st.selectbox(
+            "Team A",
+            options=["-- wähle Team A --"] + sorted(all_teams),
+            key="team_a"
+        )
+
+        selected_team = st.selectbox(
+            "Team auswählen (für Hervorhebung)",
+            options=["-- keine Auswahl --"] + sorted(all_teams),
+            index=0,
+            key="team_selector"
+        )
+
+    if selected_team != "-- keine Auswahl --":
+        st.session_state["selected_team"] = selected_team
+    else:
+        st.session_state["selected_team"] = None
+
+    with cols[1]:
+        team_b = st.selectbox(
+            "Team B",
+            options=["-- wähle Team B --"] + sorted(all_teams),
+            key="team_b"
+        )
+
+        delayed_teams = st.multiselect(
+            "Welche Teams kommen später?",
+            options=sorted(all_teams),
+            key="team_delayed",
+            placeholder="Bitte verspätete Teams auswählen …"
+        )
+
+    with cols[2]:
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("Teams tauschen", key="swap_button"):
+            if team_a == "-- wähle Team A --" or team_b == "-- wähle Team B --":
+                st.warning("Bitte wähle beide Teams aus.")
+                st.stop()
+            if team_a == team_b:
+                st.warning("Beide Teams sind gleich. Kein Tausch möglich.")
+                st.stop()
+
+            trade_teams(team_a, team_b)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("Verspätete Teams", key="delay_button"):
+            if delayed_teams:
+                delay_teams(delayed_teams)
+
+    # Zeige Gruppen an
+    for i in range(0, len(group_names), 2):
+        display_group_row(group_names, i, selected_team)
+
+    render_button()
+
+
+def tab_results():
+        # --- Anzeige der Matches ---
+    if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
+        st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
+        return
+
+    st.header("📊 Ergebnisse eingeben")
+
+    # --- Zufalls-Simulation Button ---
+    if st.button("🎲 Zufällige Ergebnisse simulieren", key="simulate_results", type="secondary"):
+        st.info("🎲 Simuliere zufällige Ergebnisse für alle Gruppen...")
+
+        tournament = st.session_state["tournament"]
+        simulate_random_results(tournament)
+        st.rerun()
+
+    stage = next(iter(st.session_state["tournament"].stages.values()))
+    groups = stage.groups
+
+    for i in range(len(groups)):
+        cols = st.columns(2)
+        if i < len(groups):
+            with cols[0]:
+                group = groups[i]
+                render_group_expander(group=group)
+            with cols[1]:
+                st.subheader(f"📋 Gruppentabelle: {group.name}")
+                st.dataframe(group.table, hide_index=True, width='content')
+        st.markdown("---")
+
+
+def tab_summary():
+    if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
+        st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
+        return
+
+    st.header("Platzierungsübersicht")
+    cols = st.columns(2)
+    stage = next(iter(st.session_state["tournament"].stages.values()))
+
+    with cols[0]:
+        st.subheader(f"📋 Gesamttabelle: {stage.id}")
+        st.dataframe(
+            stage.table,
+            hide_index=True,
+            width='content',
+            height=len(stage.teams) * 34 + 50,
+        )
+
+    with cols[1]:
+        st.subheader("Platzierungstabellen")
+        for rank, table in stage.placement_tables.items():
+            st.markdown(f"### 🥇 Alle {rank}. Plätze")
+            if table.empty:
+                st.info("Keine Teams mit dieser Platzierung.")
+            else:
+                st.dataframe(table, hide_index=True, width='content')
+
+
 def tab_group_stage():
     st.header("🆕 Vorrunde")
 
@@ -317,170 +492,13 @@ def tab_group_stage():
 
     with tabs[0]:
         # --- Übersicht ---
-        options = get_all_tournament_names()
-
-        if not options:
-            st.info("Bitte erst ein Turnier anlegen (Tab „⚙️ Neues Turnier“).")
-            return
-
-        cols = st.columns(4)
-
-        with cols[0]:
-            selected_tournament = st.selectbox(
-                "Turnier auswählen",
-                options=["-- keine Auswahl --"] + options,
-                index=0,
-                key="select_tournament"
-            )
-            st.session_state["selected_tournament"] = selected_tournament
-
-        with cols[1]:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🔄 Zurücksetzen", key="reset_button"):
-                selected_tournament = st.session_state["selected_tournament"]
-                saved_tournament = load_tournament(selected_tournament)
-
-                if saved_tournament is None:
-                    st.error("❌ Fehler beim Neuladen der Datei.")
-                else:
-                    load_savestates(saved_tournament, selected_tournament)
-
-        initialize_tournament()
-
-        if not st.session_state.get("tournament_loaded"):
-            st.info("Kein Turnier geladen.")
-            return
-
-        group_names = list(st.session_state["groups"].keys())
-        all_teams = set()
-        for group in st.session_state["groups"].values():
-            for team in group.teams:
-                all_teams.add(str(team))
-
-        cols = st.columns(4)
-
-        with cols[0]:
-            team_a = st.selectbox(
-                "Team A",
-                options=["-- wähle Team A --"] + sorted(all_teams),
-                key="team_a"
-            )
-
-            selected_team = st.selectbox(
-                "Team auswählen (für Hervorhebung)",
-                options=["-- keine Auswahl --"] + sorted(all_teams),
-                index=0,
-                key="team_selector"
-            )
-
-        if selected_team != "-- keine Auswahl --":
-            st.session_state["selected_team"] = selected_team
-        else:
-            st.session_state["selected_team"] = None
-
-        with cols[1]:
-            team_b = st.selectbox(
-                "Team B",
-                options=["-- wähle Team B --"] + sorted(all_teams),
-                key="team_b"
-            )
-
-            delayed_teams = st.multiselect(
-                "Welche Teams kommen später?",
-                options=sorted(all_teams),
-                key="team_delayed",
-                placeholder="Bitte verspätete Teams auswählen …"
-            )
-
-        with cols[2]:
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            if st.button("Teams tauschen", key="swap_button"):
-                if team_a == "-- wähle Team A --" or team_b == "-- wähle Team B --":
-                    st.warning("Bitte wähle beide Teams aus.")
-                    st.stop()
-                if team_a == team_b:
-                    st.warning("Beide Teams sind gleich. Kein Tausch möglich.")
-                    st.stop()
-
-                trade_teams(team_a, team_b)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            if st.button("Verspätete Teams", key="delay_button"):
-                if delayed_teams:
-                    delay_teams(delayed_teams)
-
-        # Zeige Gruppen an
-        for i in range(0, len(group_names), 2):
-            display_group_row(group_names, i, selected_team)
-
-        if st.button("Turnierübersicht generieren", key="create_overview", type="primary"):
-            stage_name = "Vorrunde"
-            export_overview(tournament=st.session_state["tournament"], stage_id=stage_name)
-            path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower()
-            st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
-
-        if st.button("Spielprotokolle generieren", key="create_protocols", type="primary"):
-            stage_name = "Vorrunde"
-            export_stage(tournament=st.session_state["tournament"], stage_id=stage_name)
-            stage = stage_name.lower().replace(" ", "_")
-            path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower() / stage
-            st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
+        tab_overview()
 
     with tabs[1]:
-        st.header("📊 Ergebnisse eingeben")
-
-        # --- Zufalls-Simulation Button ---
-        if st.button("🎲 Zufällige Ergebnisse simulieren", key="simulate_results", type="secondary"):
-            st.info("🎲 Simuliere zufällige Ergebnisse für alle Gruppen...")
-
-            tournament = st.session_state["tournament"]
-            simulate_random_results(tournament)
-            st.rerun()
-
-        # --- Anzeige der Matches ---
-        if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
-            st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
-            st.stop()
-
-        tournament = st.session_state["tournament"]
-        stage = next(iter(tournament.stages.values()))
-        groups = stage.groups
-
-        for i in range(len(groups)):
-            cols = st.columns(2)
-            if i < len(groups):
-                with cols[0]:
-                    group = groups[i]
-                    render_group_expander(group=group)
-                with cols[1]:
-                    st.subheader(f"📋 Gruppentabelle: {group.name}")
-                    st.dataframe(group.table, hide_index=True, width='content')
-            st.markdown("---")
+        tab_results()
 
     with tabs[2]:
-        st.header("Platzierungsübersicht")
-        cols = st.columns(2)
-        stage = next(iter(tournament.stages.values()))
-
-        with cols[0]:
-            st.subheader(f"📋 Gesamttabelle: {stage.id}")
-            st.dataframe(
-                stage.table,
-                hide_index=True,
-                width='content',
-                height=len(stage.teams) * 34 + 50,
-            )
-
-        with cols[1]:
-            st.subheader("Platzierungstabellen")
-            for rank, table in stage.placement_tables.items():
-                st.markdown(f"### 🥇 Alle {rank}. Plätze")
-                if table.empty:
-                    st.info("Keine Teams mit dieser Platzierung.")
-                else:
-                    st.dataframe(table, hide_index=True, width='content')
+        tab_summary()
 
     with tabs[3]:
         tab_new_round()
