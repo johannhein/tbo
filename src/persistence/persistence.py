@@ -23,10 +23,6 @@ def list_csv_files(upload_dir: Path) -> List[Path]:
     return sorted(upload_dir.glob("*.csv"))
 
 
-def load_csv(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, dtype=str).fillna("")
-
-
 @st.cache_data
 def load_csv(path: Path) -> pd.DataFrame:
     """CSV einmalig einlesen und im Cache halten."""
