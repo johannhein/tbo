@@ -316,6 +316,21 @@ def ui_second_selection_line(tournament: Tournament, keys: Dict):
         with cols[3]:
             render_team_selection(tournament=tournament, keys=keys, team=2)
 
+        if st.session_state[keys["place_t1"]] and st.session_state[keys["place_t2"]]:
+            if st.session_state[keys["place_t1"]] == st.session_state[keys["place_t2"]] and st.session_state[keys["stage_t1"]] == st.session_state[keys["stage_t2"]]:
+                st.warning("Du hast die gleichen Teamlisten ausgewählt")
+
+            teams_1 = tournament.stages[st.session_state[keys["stage_t1"]]].teams
+            teams_2 = tournament.stages[st.session_state[keys["stage_t2"]]].teams
+
+            teams_doubled = [team for team in teams_1 if team in teams_2]
+
+            if teams_doubled:
+                if len(teams_doubled) == 1:
+                    st.warning(f"Das Team {teams_doubled[0]} kommt in beiden Teamlisten vor")
+                elif len(teams_doubled) > 1:
+                    st.warning(f"Die Teams {teams_doubled} kommen in beiden Teamlisten vor")
+
 
 def render_round_config(round_idx: int, tournament):
     """Zeigt ein einzelnes Runden-Setup mit dynamischen Keys an."""
