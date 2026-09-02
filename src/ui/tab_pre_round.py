@@ -10,8 +10,7 @@ from db import load_tournament, get_all_tournament_names
 from scoring import process_match_scores
 from scoring.results import simulate_random_results
 from ui.tab_new_round import tab_new_round
-from utils import export_stage
-from utils.export_overview import render_tournament_overview_html
+from utils import export_stage, export_overview
 
 
 def create_score_input(col: st.delta_generator.DeltaGenerator, default_pts: int | None, key: str, label: str = "") -> int:
@@ -418,7 +417,7 @@ def tab_group_stage():
 
         if st.button("Turnierübersicht generieren", key="create_overview", type="primary"):
             stage_name = "Vorrunde"
-            render_tournament_overview_html(tournament=st.session_state["tournament"], stage_id=stage_name)
+            export_overview(tournament=st.session_state["tournament"], stage_id=stage_name)
             path = EXPORT_DIR.resolve() / st.session_state["tournament"].type.lower()
             st.success(f"✅ Die Protokolle wurden in dem Ordner {path} gespeichert.")
 
