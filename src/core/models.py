@@ -83,8 +83,6 @@ class Match:
             return self.t1
         if s[1] > s[0]:
             return self.t2
-        if s[1] == s[0]:
-            return "unentschieden"
         return None
 
     @property
@@ -97,8 +95,6 @@ class Match:
             return self.t1
         if s[1] < s[0]:
             return self.t2
-        if s[1] == s[0]:
-            return "unentschieden"
         return None
 
     @property
