@@ -219,10 +219,16 @@ class Stage:
     teams: List[str]
     groups: List[Group] | None = None
     match_list: List[Match] | None = None
-    prev_stage: StageID = None
-    next_stages: List[StageID] = field(default_factory=list)  # IDs der nächsten Runden
-    is_completed: bool = False
-    results: Dict[str, Any] = field(default_factory=dict)  # z. B. Platzierungen, Gewinner
+    _table_cache: Optional[pd.DataFrame] = None
+    _placement_tables_cache: Optional[pd.DataFrame] = None
+    _last_match_list_hash: Optional[int] = None
+
+    @property
+    def is_complete(self) -> bool:
+        """Prüft, ob alle Matches in dieser Stage abgeschlossen sind."""
+        if not self.match_list:
+            return False
+        return all(match.status == MatchStatus.FINISHED for match in self.match_list)
 
     @property
     def table(self) -> pd.DataFrame | None:
@@ -231,10 +237,15 @@ class Stage:
         1. Platzierung in der Gruppe
         2. Punkte
         3. Sätze-Differenz
-        4. Kleine Punkte
+        4. Anzahl gewonnene Sätze
+        5. Kleine Punkte
         """
         if self.type == StageType.GROUP:
             team_data = self._collect_team_data()
+            current_hash = self._get_data_hash()
+
+            if self._table_cache is not None and self._last_match_list_hash == current_hash:
+                return self._table_cache
             if not team_data:
                 return pd.DataFrame(columns=["Rang", "Team", "Gruppe", "Platzierung", "Punkte", "Sätze", "Kleine Punkte"])
 
@@ -265,13 +276,14 @@ class Stage:
 
     @property
     def placement_tables(self) -> Dict[int, pd.DataFrame] | None:
-        """
-        Gibt ein Dictionary mit Tabellen für jede Platzierung zurück:
-        - key: Platzierung (1, 2, 3, ...)
-        - value: pd.DataFrame mit allen Teams, die diese Platzierung in ihrer Gruppe erreicht haben
-        """
+        """Gibt ein Dictionary mit Tabellen für jede Platzierung zurück."""
         if self.type == StageType.GROUP:
             team_data = self._collect_team_data()
+            current_hash = self._get_data_hash()
+
+            if self._table_cache is not None and self._last_match_list_hash == current_hash:
+                return self._placement_tables_cache
+
             if not team_data:
                 return {}
 
@@ -323,6 +335,24 @@ class Stage:
             return loser_teams
         else:
             return None
+
+    def _get_data_hash(self) -> int:
+        """Berechnet den Hash der gespeicherten Daten."""
+        team_data = self._collect_team_data()
+
+        team_data_tuple = tuple(
+            (
+                team["Team"],
+                team["Punkte"],
+                team["Sätze"],
+                team["Kleine Punkte"],
+                team["Platzierung"],
+                team.get("Gruppe", "")
+            )
+            for team in team_data
+        )
+
+        return hash(team_data_tuple)
 
     def _collect_team_data(self) -> List[Dict[str, Any]]:
         """Sammelt alle Teams aus allen Gruppen mit ihren Statistiken."""
@@ -414,17 +444,13 @@ class Group:
         """
         # Hash der match_list für Änderungserkennung
         current_hash = hash(tuple((m.t1, m.t2, m.score, m.points) for m in (self.match_list or [])))
-
         if self._table_cache is not None and self._last_match_list_hash == current_hash:
             return self._table_cache
 
-        # Wenn keine Matches vorhanden → leere Tabelle
         if not self.match_list:
             return pd.DataFrame(columns=["Rang", "Team", "Spiele", "Sätze", "Kleine Punkte", "Punkte"])
 
-        # Statistiken berechnen (wie in deiner render_group_table-Funktion)
         team_stats = {}
-
         for match in self.match_list:
             t1, t2 = match.t1, match.t2
             for team, name in [(t1, t1), (t2, t2)]:
@@ -442,7 +468,7 @@ class Group:
             if match.score is None:
                 continue
 
-            # Spiele zählen
+            # Anzahl Spiele
             team_stats[t1]["Spiele"] += 1
             team_stats[t2]["Spiele"] += 1
 
@@ -455,7 +481,7 @@ class Group:
                 team_stats[t1]["Punkte"] += 1
                 team_stats[t2]["Punkte"] += 1
 
-            # Sätze
+            # Sätze zählen
             team_stats[t1]["Sätze"] += match.score[0]
             team_stats[t2]["Sätze"] += match.score[1]
 
@@ -463,7 +489,7 @@ class Group:
             team_stats[t1]["Kleine-Punkte"] += match.points[0] - match.points[1]
             team_stats[t2]["Kleine-Punkte"] += match.points[1] - match.points[0]
 
-        # Sätze-Verhältnis berechnen (gesamt gewonnen / verloren)
+        # Sätze-Verhältnis als Tuple berechnen (gewonnen, verloren)
         for name in team_stats:
             sets_won = team_stats[name]["Sätze"]
             sets_lost = 0
@@ -478,13 +504,12 @@ class Group:
                     sets_lost += match.score[0]
             team_stats[name]["Sätze-Verhältnis"] = (sets_won, sets_lost)
 
-        # Sortieren: Punkte → Sätze → Kleine Punkte
-        sorted_teams = sorted(
-            team_stats.items(),
-            key=lambda x: (x[1]["Punkte"], x[1]["Sätze-Verhältnis"][0] - x[1]["Sätze-Verhältnis"][1],
-                           x[1]["Kleine-Punkte"]),
-            reverse=True,
-        )
+        # Sortieren: Punkte→ Satzdifferenz → Anzahl gewonnene Sätze → Kleine Punkte
+        sorted_teams = sorted(team_stats.items(),
+                              key=lambda x: (x[1]["Punkte"],
+                                             x[1]["Sätze-Verhältnis"][0] - x[1]["Sätze-Verhältnis"][1], x[1]["Sätze-Verhältnis"][0],
+                                             x[1]["Sätze-Verhältnis"][0], x[1]["Kleine-Punkte"]),
+                              reverse=True,)
 
         # Tabelle erstellen
         table_data = []
@@ -526,14 +551,7 @@ class Group:
                 self.teams.append(team_name)
 
     def swap_teams(self, index1: int, index2: int):
-        """
-        Tauscht zwei Teams in der Liste an den gegebenen Indizes.
-
-        :param index1: Index des ersten Teams
-        :param index2: Index des zweiten Teams
-        :raises IndexError: Wenn ein Index ungültig ist
-        :raises ValueError: Wenn die Indizes gleich sind
-        """
+        """Tauscht zwei Teams in der Liste an den gegebenen Indizes."""
         if not (0 <= index1 < len(self.teams)):
             raise IndexError(f"Index {index1} ist außerhalb des gültigen Bereichs (0 bis {len(self.teams) - 1})")
         if not (0 <= index2 < len(self.teams)):
@@ -544,13 +562,7 @@ class Group:
         self.teams[index1], self.teams[index2] = self.teams[index2], self.teams[index1]
 
     def swap_teams_by_name(self, team_name1: str, team_name2: str):
-        """
-        Tauscht zwei Teams in der Liste anhand ihres Namens.
-
-        :param team_name1: Name des ersten Teams
-        :param team_name2: Name des zweiten Teams
-        :raises ValueError: Wenn eines der Teams nicht gefunden wird oder die Namen gleich sind
-        """
+        """Tauscht zwei Teams in der Liste anhand ihres Namens."""
         if team_name1 == team_name2:
             raise ValueError("Beide Team-Namen sind gleich – kein Tausch nötig.")
 
@@ -572,10 +584,6 @@ class Group:
         """
         Nutzt self.schedule_schema und füllt self.match_list mit echten
         Match‑Instanzen.
-
-        * Die Feld‑Belegung rotiert über self.assigned_courts.
-        * Team‑IDs aus dem Schema (1‑basiert) werden in die tatsächlichen
-          Team‑Namen (Strings) übersetzt.
         """
         self.match_list = []
 
