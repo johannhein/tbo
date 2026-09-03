@@ -1,5 +1,5 @@
 -- -----------------------------------------------------------------
--- Tabelle für die Feld‑Belegung (wie bereits definiert)
+-- Tabelle für die Feld‑Belegung
 -- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tournament_courts (
     id            INTEGER PRIMARY KEY,
@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS tournament_courts (
 );
 
 -- -----------------------------------------------------------------
--- Tabelle für globale Feld‑Höhen (String‑ID als PK)
+-- Tabelle für globale Feld‑Höhen
 -- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS court_heights_global (
     court           INTEGER NOT NULL,

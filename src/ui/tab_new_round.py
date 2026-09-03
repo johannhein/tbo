@@ -46,10 +46,7 @@ def init_session_state_keys(keys: Dict):
 
 
 def render_stage_preview(stage: Stage):
-    """
-    Zeigt eine aufklappbare Vorschau der aktuellen Runde an.
-
-    """
+    """Zeigt eine aufklappbare Vorschau der aktuellen Runde an."""
     stage_name = stage.id
     if not stage_name:
         st.warning("Kein Rundenname gesetzt.")
@@ -134,7 +131,6 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
     tournament.stages[stage_name] = Stage(id=stage_name, type=stage_typ, teams=teams)
 
     # st.success(f"✅ Runde '{stage_name}' wurde erstellt.")
-
     return stage
 
 
@@ -454,7 +450,6 @@ def render_round_config(round_idx: int, tournament):
 
     init_session_state_keys(keys=keys)
 
-    # UI: Auswahl
     ui_first_selection_line(tournament=tournament, keys=keys)
 
     ui_second_selection_line(tournament=tournament, keys=keys)
@@ -483,12 +478,14 @@ def render_round_generation(tournament):
 
 
 def tab_new_round():
+    if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
+        st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
+        return
+
     st.header("Nächste Runde Konfigurator")
 
-    # Zustand initialisieren
     _init_session_state()
 
-    # Prüfe, ob Turnier geladen ist
     if not validate_tournament():
         return
 

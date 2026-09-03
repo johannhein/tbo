@@ -335,12 +335,13 @@ def tab_overview():
     cols = st.columns(4)
 
     with cols[0]:
-        st.selectbox(
+        selected_tournament = st.selectbox(
             "Turnier auswählen",
             options=["-- keine Auswahl --"] + options,
             index=0,
             key="select_tournament"
         )
+        st.session_state["selected_tournament"] = selected_tournament
 
     with cols[1]:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -427,14 +428,12 @@ def tab_overview():
 
 
 def tab_results():
-        # --- Anzeige der Matches ---
     if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
         st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
         return
 
     st.header("📊 Ergebnisse eingeben")
 
-    # --- Zufalls-Simulation Button ---
     if st.button("🎲 Zufällige Ergebnisse simulieren", key="simulate_results", type="secondary"):
         st.info("🎲 Simuliere zufällige Ergebnisse für alle Gruppen...")
 
@@ -486,12 +485,11 @@ def tab_summary():
 
 
 def tab_group_stage():
-    st.header("🆕 Vorrunde")
+    st.header("Vorrunde")
 
     tabs = st.tabs(["📋 Übersicht", "📊 Ergebnisse", "📋 Zusammenfassung", "⏩ Nächste Runde"])
 
     with tabs[0]:
-        # --- Übersicht ---
         tab_overview()
 
     with tabs[1]:

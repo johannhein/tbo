@@ -10,5 +10,4 @@ __all__ = [
     "match_making_cross", "match_making_direct", "match_making_ranking",
     # export_overview
     "export_overview"
-
 ]

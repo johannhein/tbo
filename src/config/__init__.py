@@ -1,4 +1,4 @@
-from .match_planer import SCHEMA_MAP
+from .match_planer_groups import SCHEMA_MAP
 from .mapping import MATCH_MODE_TO_UI, UI_TO_MATCH_MODE, MATCH_MODE_TO_SETS, ui_modus, settings_to_ui_values, format_modus
 
 

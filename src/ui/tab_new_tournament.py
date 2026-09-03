@@ -656,11 +656,86 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
         st.info("Alle Gruppen sind vollständig – ein einheitlicher Spielmodus wird verwendet.")
 
 
+def assign_courts(groups: Dict, selected_courts: List[int]):
+    st.subheader("🔧 Konkrete Felder pro Gruppe zuweisen")
+
+    max_total_courts = st.session_state["max_court"]
+
+    if max_total_courts == 0:
+        st.warning("⚠️ Keine Felder verfügbar. Bitte wähle mindestens ein Feld aus.")
+        st.stop()
+
+    court_assignments = st.session_state.get("court_assignments", {})
+
+    # Gruppen in Blöcken zu je 4 pro Zeile anzeigen
+    group_names = list(groups.keys())
+    for i in range(0, len(group_names), 4):
+        group_block = group_names[i: i + 4]
+        cols = st.columns(4)
+
+        for j, name in enumerate(group_block):
+            with cols[j]:
+                # Filtere ungültige Felder aus default
+                current_courts = court_assignments.get(name, [])
+                valid_courts = [c for c in current_courts if c in selected_courts]
+                if len(valid_courts) != len(current_courts):
+                    st.warning(f"⚠️ Ungültige Felder entfernt: {set(current_courts) - set(selected_courts)}")
+
+                new_courts = st.multiselect(
+                    f"Gruppe {name} – Felder",
+                    options=selected_courts,
+                    default=valid_courts,
+                    key=f"assign_courts_{name}",
+                    placeholder="Felder auswählen …",
+                )
+
+                st.session_state["court_assignments"][name] = new_courts
+
+
+def button_create_tournament(tournament_type: str):
+    if st.button("Turnier erstellen", key="create_tournament_button", type="primary",):
+        # Feldbelegungen speichern
+        total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
+        groups = st.session_state["groups_final"]
+        if total_assigned > st.session_state["max_court"]:
+            st.error(f"❌ Zu viele Felder zugewiesen! Nur {st.session_state["max_court"]} verfügbar.")
+        else:
+            for name, group in groups.items():
+                group.assigned_courts = st.session_state["court_assignments"][name]
+            assignments = st.session_state["court_assignments"]
+            if assignments:
+                # Erstelle eine Liste von Formatierungen: "Gruppe X: Feld Y,Z"
+                parts = []
+                for group_name, courts in assignments.items():
+                    courts_str = ", ".join(map(str, courts))
+                    parts.append(f"**Gruppe {group_name}:** Feld {courts_str}")
+
+                line = " | ".join(parts)
+                st.success(f"{line}")
+            else:
+                st.info("Keine Felder zugewiesen.")
+
+        name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
+        tournament = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
+        group_list: List[Group] = list(groups.values())
+        stage = Stage(id="Vorrunde", type=StageType.GROUP, teams=st.session_state["teams"],
+                      groups=group_list)
+
+        tournament.add_stage(stage)
+        tournament.schedule_stage(stage.id)
+
+        year = datetime.datetime.now().year
+        name = f"{tournament.type} {str(year)}"
+        save_tournament(tournament, name)
+
+        st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
+
+
 # ----------------------------------------------------------------------
 # Zusammenbauen der Seite
 # ----------------------------------------------------------------------
 def tab_new_tournament() -> None:
-    st.header("🆕 Neues Turnier erstellen")
+    st.header("Neues Turnier erstellen")
 
     st.session_state.setdefault("game_modes", {
         "complete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
@@ -738,54 +813,22 @@ def tab_new_tournament() -> None:
         groups = {}
 
     if groups:
-        st.subheader("🔧 Konkrete Felder pro Gruppe zuweisen")
-
         selected_courts = st.session_state.get("selected_courts", [])
-        max_total_courts = len(selected_courts)
+        st.session_state["max_court"] = len(selected_courts)
 
-        if max_total_courts == 0:
-            st.warning("⚠️ Keine Felder verfügbar. Bitte wähle mindestens ein Feld aus.")
-            st.stop()
-
-        court_assignments = st.session_state.get("court_assignments", {})
-
-        # Gruppen in Blöcken zu je 4 pro Zeile anzeigen
-        group_names = list(groups.keys())
-        for i in range(0, len(group_names), 4):
-            group_block = group_names[i: i + 4]
-            cols = st.columns(4)
-
-            for j, name in enumerate(group_block):
-                with cols[j]:
-                    # Filtere ungültige Felder aus default
-                    current_courts = court_assignments.get(name, [])
-                    valid_courts = [c for c in current_courts if c in selected_courts]
-                    if len(valid_courts) != len(current_courts):
-                        st.warning(f"⚠️ Ungültige Felder entfernt: {set(current_courts) - set(selected_courts)}")
-
-                    new_courts = st.multiselect(
-                        f"Gruppe {name} – Felder",
-                        options=selected_courts,
-                        default=valid_courts,
-                        key=f"assign_courts_{name}",
-                        placeholder="Felder auswählen …",
-                    )
-
-                    st.session_state["court_assignments"][name] = new_courts
+        assign_courts(groups=groups, selected_courts=selected_courts)
 
         total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
 
-        if total_assigned > max_total_courts:
-            st.warning(f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {max_total_courts} verfügbar!")
+        if total_assigned > st.session_state["max_court"]:
+            st.warning(f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {st.session_state["max_court"]} verfügbar!")
 
-        st.session_state["max_court"] = max_total_courts
         st.session_state["groups"] = groups
 
         # Ermittlung unvollständiger Gruppen
         incomplete = [name for name, grp in groups.items() if not grp.complete]
         st.session_state["incomplete_groups"] = incomplete
 
-    # Spielmodi
         ui_game_modes(incomplete)
         groups = st.session_state["groups"]
 
@@ -799,42 +842,7 @@ def tab_new_tournament() -> None:
         st.session_state["groups_final"] = groups
 
     # Turnier erstellen
-    if st.button("Turnier erstellen", key="create_tournament_button", type="primary",):
-        # Feldbelegungen speichern
-        total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
-        groups = st.session_state["groups_final"]
-        if total_assigned > st.session_state["max_court"]:
-            st.error(f"❌ Zu viele Felder zugewiesen! Nur {st.session_state["max_court"]} verfügbar.")
-        else:
-            for name, group in groups.items():
-                group.assigned_courts = st.session_state["court_assignments"][name]
-            assignments = st.session_state["court_assignments"]
-            if assignments:
-                # Erstelle eine Liste von Formatierungen: "Gruppe X: Feld Y,Z"
-                parts = []
-                for group_name, courts in assignments.items():
-                    courts_str = ", ".join(map(str, courts))
-                    parts.append(f"**Gruppe {group_name}:** Feld {courts_str}")
-
-                line = " | ".join(parts)
-                st.success(f"{line}")
-            else:
-                st.info("Keine Felder zugewiesen.")
-
-        name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
-        tournament = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
-        group_list: List[Group] = list(groups.values())
-        stage = Stage(id="Vorrunde", type=StageType.GROUP, teams=st.session_state["teams"],
-                      groups=group_list)
-
-        tournament.add_stage(stage)
-        tournament.schedule_stage(stage.id)
-
-        year = datetime.datetime.now().year
-        name = f"{tournament.type} {str(year)}"
-        save_tournament(tournament, name)
-
-        st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
+    button_create_tournament(tournament_type=tournament_type)
 
     # Aufräumen (temporäre Upload‑Datei)
     if csv_path.name.startswith("tmp_"):

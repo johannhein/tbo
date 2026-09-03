@@ -9,4 +9,4 @@ __all__ = [
     "tab_new_tournament",
     "tab_presets",
     "tab_group_stage"
-    ]
+]

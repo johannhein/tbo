@@ -1,9 +1,7 @@
 from config.constants import DEFAULT_TIEBREAK
 from core.models import MatchMode, MatchSettings
 
-# -------------------------------------------------
 # Mapping
-# -------------------------------------------------
 MATCH_MODE_TO_UI = {
     MatchMode.SETS_1: "1 Satz",
     MatchMode.SETS_2: "2 Sätze",
