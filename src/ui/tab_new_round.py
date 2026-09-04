@@ -549,16 +549,18 @@ def render_delete_stage():
         cols = st.columns(5)
 
         with cols[0]:
-            options = st.session_state.stage_dict.keys()
+            options = list(st.session_state.stage_dict.keys())
             delete_stage = st.selectbox(
                 label="Welche Runde soll gelöscht werden?",
-                options=["-- keine Auswahl --"] + options
+                options=["-- keine Auswahl --"] + options,
+                index=0,
             )
 
         with cols[1]:
             st.write("")
             if st.button("Runden löschen"):
-                st.session_state.stage_dict.pop(delete_stage, None)
+                if delete_stage != "-- keine Auswahl --":
+                    st.session_state.stage_dict.pop(delete_stage, None)
 
 
 def render_round_generation(tournament):
