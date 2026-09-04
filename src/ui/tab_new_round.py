@@ -31,7 +31,7 @@ def init_session_state_keys(keys: Dict):
                 st.session_state[k] = DEFAULT_TIEBREAK
             elif k in {keys["points_complete"], keys["points_incomplete"]}:
                 st.session_state[k] = DEFAULT_POINTS
-            elif k in {keys["stage_ready"], keys["placing_bool"]}:
+            elif k == keys["placing_bool"]:
                 st.session_state[k] = False
             elif k in {keys["modus_complete"], keys["modus_incomplete"]}:
                 st.session_state[k] = "2 Sätze"
@@ -537,10 +537,14 @@ def render_round_config(round_idx: int, tournament):
             st.warning("Keine Runde vorhanden.")
             return
 
-        if new_stage.type == StageType.NONGROUP:
-            render_stage_preview(stage=new_stage)
+    if keys["stage_ready"] not in st.session_state:
+        st.session_state[keys["stage_ready"]] = False
+    if st.session_state[keys["stage_ready"]]:
+        stage_render = st.session_state[keys["stage"]]
+        if stage_render.type == StageType.NONGROUP:
+            render_stage_preview(stage=stage_render)
         else:
-            render_groups_review(stage=new_stage)
+            render_groups_review(stage=stage_render)
 
 
 def render_round_generation(tournament):
