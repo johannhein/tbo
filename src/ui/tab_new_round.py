@@ -92,6 +92,7 @@ def render_round_configs(tournament):
 
 
 def set_group_settings(groups: List[Group], settings: MatchSettings, keys: Dict) -> List[Group]:
+    """Spielmodus für die Gruppen setzen."""
     for group in groups:
         if group.complete:
             group.settings = settings
@@ -105,6 +106,7 @@ def set_group_settings(groups: List[Group], settings: MatchSettings, keys: Dict)
 
 
 def confirm_round(keys: Dict) -> Stage:
+    """Runde bestätigen und verarbeiten."""
     courts = st.session_state[keys["courts"]]
     if not courts:
         st.warning("Es wurden keine Felder gesetzt.")
@@ -165,6 +167,7 @@ def confirm_round(keys: Dict) -> Stage:
 
 
 def render_match_settings(keys: Dict, complete: bool = True):
+    """Einstellen des Spielmodus"""
     cols = st.columns(5)
     if complete:
         modus = "complete"
@@ -202,6 +205,7 @@ def render_match_settings(keys: Dict, complete: bool = True):
 
 
 def render_slider(tournament: Tournament, keys: Dict):
+    """Slider für die Platzierung"""
     if st.session_state[keys["teams_list"]]:
         num_teams = len(st.session_state[keys["teams_list"]])
     else:
@@ -231,6 +235,7 @@ def render_slider(tournament: Tournament, keys: Dict):
 
 
 def render_direct_stage(tournament: Tournament, keys: Dict):
+    """Optionen zum Erstellen der 'Direkte Spiele'"""
     stage = tournament.stages[st.session_state[keys["stage_direct"]]]
     if stage.type == StageType.GROUP:
         place_keys = list(stage.placement_tables.keys())
@@ -269,6 +274,7 @@ def render_direct_stage(tournament: Tournament, keys: Dict):
 
 
 def ui_first_selection_line(tournament: Tournament, keys: Dict):
+    """Die Funktionen der ersten Reihe für das Erstellen einer neuen Runde."""
     cols = st.columns(5)
 
     with cols[0]:
@@ -324,6 +330,7 @@ def ui_first_selection_line(tournament: Tournament, keys: Dict):
 
 
 def render_stage_selection(tournament: Tournament, keys: Dict, team: int):
+    """Rundenauswahlbox"""
     st.selectbox(
         label=f"Aus welcher Runde kommt Team {team}",
         options=list(tournament.stages.keys()),
@@ -332,6 +339,7 @@ def render_stage_selection(tournament: Tournament, keys: Dict, team: int):
 
 
 def render_team_selection(tournament: Tournament, keys: Dict, team: int):
+    """Enthält die Funktionen für die Auswahl der Teams für dei 'Überkreuzspiele' und 'Gruppenphase'."""
     stage_name = st.session_state[keys[f"stage_t{team}"]]
     if stage_name is not None and stage_name in tournament.stages:
         stage = tournament.stages[stage_name]
@@ -374,6 +382,7 @@ def render_team_selection(tournament: Tournament, keys: Dict, team: int):
 
 
 def render_x_vs_y(tournament: Tournament, keys: Dict):
+    """Enthält die Funktionen für die 'x.Plätze vs.y.Platz' Option."""
     cols = st.columns(5)
     with cols[0]:
         render_stage_selection(tournament=tournament, keys=keys, team=1)
@@ -408,6 +417,7 @@ def render_x_vs_y(tournament: Tournament, keys: Dict):
 
 
 def render_from_x_until_y(tournament: Tournament, keys: Dict):
+    """Enthält die Funktionen für die 'Platz x bis y aus Gesamtranking' Option."""
     cols = st.columns(5)
     with cols[0]:
         render_stage_selection(tournament=tournament, keys=keys, team=1)
@@ -450,6 +460,7 @@ def render_from_x_until_y(tournament: Tournament, keys: Dict):
 
 
 def ui_second_selection_line(tournament: Tournament, keys: Dict):
+    """Enthält die Funktionen der zweiten Reihe zum Erstellen einer neuen Runde."""
     if st.session_state.get(keys["opponent_logic_choice"]) == "x. Plätze vs. y. Platz":
         render_x_vs_y(tournament=tournament, keys=keys)
     elif st.session_state.get(keys["opponent_logic_choice"]) == "Platz x bis y aus Gesamtranking":
@@ -477,7 +488,7 @@ def render_groups_review(stage: Stage) -> None:
 
 
 def render_round_config(round_idx: int, tournament):
-    """Zeigt ein einzelnes Runden-Setup mit dynamischen Keys an."""
+    """Beinhaltet alle Funktionen zum Anlegen einer neuen Runde."""
     st.subheader(f"Runde {round_idx + 1}")
 
     # Dynamische Keys
@@ -545,6 +556,7 @@ def render_round_config(round_idx: int, tournament):
 
 
 def render_delete_stage():
+    """Ermöglicht das Löschen einer ausgewählten Runde aus der Stage-Liste."""
     if st.session_state.stage_dict:
         cols = st.columns(5)
 
@@ -575,6 +587,7 @@ def render_round_generation(tournament):
 
 
 def tab_new_round():
+    """Erstellt den neue Runden Tab."""
     if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
         st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
         return
