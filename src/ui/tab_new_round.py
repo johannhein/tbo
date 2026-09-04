@@ -5,7 +5,7 @@ from config import UI_TO_MATCH_MODE, MATCH_MODE_TO_UI, format_modus, ui_modus
 from config.constants import DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE
 from core import Stage, Tournament
 from core.models import StageType, MatchSettings
-from utils import match_making_direct, match_making_cross
+from utils import match_making_direct, match_making_x_vs_y, match_making_ranking, build_groups
 
 
 def _init_session_state():
@@ -27,9 +27,7 @@ def init_session_state_keys(keys: Dict):
         if k not in st.session_state:
             if k == keys["game_modes"]:
                 st.session_state[k] = {}
-            elif k in {keys["teams_list"], keys["teams1_list"], keys["teams2_list"]}:
-                st.session_state[k] = []
-            elif k == keys["courts"]:
+            elif k in {keys["teams_list"], keys["group_list"], keys["courts"]}:
                 st.session_state[k] = []
             elif k in {keys["tiebreak_complete"], keys["tiebreak_incomplete"]}:
                 st.session_state[k] = DEFAULT_TIEBREAK
@@ -106,26 +104,49 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
     if not courts:
         st.warning("Es wurden keine Felder gesetzt.")
         st.stop()
-    stage_name = st.session_state[keys["stage_name"]]
+    stage_name = st.session_state[keys["stage_name_from"]]
     round_type = st.session_state[keys["round_type"]]
     match_settings_complete = MatchSettings(modus=st.session_state[keys["game_modes"]]["complete"]["modus"],
                                             points=st.session_state[keys["game_modes"]]["complete"]["points"],
                                             tiebreak=st.session_state[keys["game_modes"]]["complete"]["tiebreak"])
+
+    teams = st.session_state[keys["teams_list"]]
+
+    stage_typ: StageType = StageType.NONGROUP
     if round_type == "Gruppenphase":
         stage_typ: StageType = StageType.GROUP
-    else:
-        stage_typ: StageType = StageType.NONGROUP
-
-    if round_type == "Direkte Spiele":
-        teams = st.session_state[keys["teams_list"]]
+        teams_1 = teams[:len(teams) // 2]
+        teams_2 = teams[len(teams) // 2:]
+        # todo felder zuweisung
+        if len(courts) < len(teams) / st.session_state[keys["groups_max"]]:
+            st.warning("Es gibt zu wenige Felder für jede Gruppe.")
+            st.stop()
+        if st.session_state[keys["opponent_logic_choice"]] == "x. Plätze vs. y. Platz":
+            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts)
+        # elif st.session_state[keys["opponent_logic_choice"]] == "Platz x bis y aus Gesamtranking":
+        else:
+            groups_list = st.session_state[keys["group_list"]]
+            group_1 = groups_list[:len(groups_list) // 2]
+            group_2 = groups_list[len(groups_list) // 2:]
+            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts, group_1, group_2)
+        stage = Stage(id=stage_name, type=stage_typ, teams=teams, groups=groups)
+    elif round_type == "Direkte Spiele":
         match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings_complete)
-    elif round_type == "Überkreuzspiele":
-        # todo Platz x bis y statt Platz x vs Platz y
-        teams = st.session_state[keys["teams1_list"]] + st.session_state[keys["teams2_list"]]
-        match_list = match_making_cross(teams_1=st.session_state[keys["teams1_list"]],
-                                        teams_2=st.session_state[keys["teams2_list"]], courts=courts,
-                                        settings=match_settings_complete)
-    stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
+        stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
+    # elif round_type == "Überkreuzspiele"
+    else:
+        if st.session_state[keys["opponent_logic_choice"]] == "x. Plätze vs. y. Platz":
+            teams_1 = teams[:len(teams) // 2]
+            teams_2 = teams[len(teams) // 2:]
+            match_list = match_making_x_vs_y(teams_1=teams_1, teams_2=teams_2, courts=courts,
+                                             settings=match_settings_complete)
+        # elif st.session_state[keys["opponent_logic_choice"]] == "Platz x bis y aus Gesamtranking":
+        else:
+            groups = st.session_state[keys["group_list"]]
+            match_list = match_making_ranking(teams=teams, groups=groups, courts=courts, settings=match_settings_complete)
+
+        stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
+
     st.session_state[keys["stage"]] = stage
     st.session_state[keys["stage_ready"]] = True
     tournament.stages[stage_name] = Stage(id=stage_name, type=stage_typ, teams=teams)
@@ -178,8 +199,6 @@ def render_match_settings(keys: Dict):
 def render_slider(tournament: Tournament, keys: Dict):
     if st.session_state[keys["teams_list"]]:
         num_teams = len(st.session_state[keys["teams_list"]])
-    elif st.session_state[keys["teams1_list"]]:
-        num_teams = len(st.session_state[keys["teams1_list"]] + st.session_state[keys["teams2_list"]])
     else:
         # todo hier noch mal drüber schauen, welche fälle das betreffen könnte
         num_teams = 0
@@ -251,7 +270,7 @@ def ui_first_selection_line(tournament: Tournament, keys: Dict):
         st.text_input(
             label="Name der Runde:",
             placeholder="Gib einen Namen für die Runde ein ...",
-            key=keys["stage_name"]
+            key=keys["stage_name_from"]
         )
 
     with cols[1]:
@@ -321,7 +340,10 @@ def render_team_selection(tournament: Tournament, keys: Dict, team: int):
             if place in place_keys:
                 stage = tournament.stages[stage_name]
                 list_teams = stage.placement_tables[place].sort_values(by=["Gruppe"])["Team"].tolist()
-                st.session_state[keys[f"teams{team}_list"]] = list_teams
+                if team == 1:
+                    st.session_state[keys["teams_list"]] = list_teams
+                else:
+                    st.session_state[keys["teams_list"]] = st.session_state[keys["teams_list"]] + list_teams
         elif stage.type == StageType.NONGROUP:
             place_direct = st.selectbox(
                 label="Verlierer oder Gewinner",
@@ -340,7 +362,10 @@ def render_team_selection(tournament: Tournament, keys: Dict, team: int):
             elif len(list_teams) % 2 != 0:
                 st.warning("Die ausgewählte Anzahl an Teams ist ungerade.")
             else:
-                st.session_state[keys[f"teams{team}_list"]] = list_teams
+                if team == 1:
+                    st.session_state[keys["teams_list"]] = list_teams
+                else:
+                    st.session_state[keys["teams_list"]] = st.session_state[keys["teams_list"]] + list_teams
 
 
 def render_x_vs_y(tournament: Tournament, keys: Dict):
@@ -360,13 +385,13 @@ def render_x_vs_y(tournament: Tournament, keys: Dict):
     if st.session_state[keys["place_t1"]] and st.session_state[keys["place_t2"]]:
         place_t1 = st.session_state.get(keys["place_t1"])
         place_t2 = st.session_state.get(keys["place_t2"])
-        stage_t1 = st.session_state.get(keys["stage_t1"])
-        stage_t2 = st.session_state.get(keys["stage_t2"])
+        stage_t1 = tournament.stages[st.session_state.get(keys["stage_t1"])]
+        stage_t2 = tournament.stages[st.session_state.get(keys["stage_t2"])]
         if place_t1 is not None and place_t1 == place_t2 and stage_t1 is not None and stage_t1 == stage_t2:
             st.warning("Du hast die gleichen Platzierungen ausgewählt")
 
-        teams_1 = tournament.stages[st.session_state[keys["stage_t1"]]].teams
-        teams_2 = tournament.stages[st.session_state[keys["stage_t2"]]].teams
+        teams_1 = stage_t1.placement_tables[place_t1].sort_values(by=["Gruppe"])["Team"].tolist()
+        teams_2 = stage_t2.placement_tables[place_t2].sort_values(by=["Gruppe"])["Team"].tolist()
 
         teams_doubled = [team for team in teams_1 if team in teams_2]
 
@@ -387,22 +412,36 @@ def render_from_x_until_y(tournament: Tournament, keys: Dict):
         if tournament.stages[stage_name].type != StageType.GROUP:
             st.warning("Die gewählte Runde hat keine Gruppenphase, daher ist kein Gesamtranking vorhanden.")
             st.stop()
-        num_teams = len(tournament.stages[stage_name].teams)
+        stage = tournament.stages[stage_name]
+        num_teams = len(stage.teams)
         places = list(range(1, num_teams + 1))
         if stage_name is not None and stage_name in tournament.stages:
             with cols[1]:
-                st.selectbox(
+                r_from = st.selectbox(
                     label="Platz von:",
                     options=places,
                     key=keys["place_from"]
                 )
 
             with cols[2]:
-                st.selectbox(
+                r_until = st.selectbox(
                     label="Platz bis:",
                     options=places,
                     key=keys["place_until"]
                 )
+
+            if st.session_state[keys["place_from"]] and st.session_state[keys["place_until"]]:
+                if st.session_state[keys["round_type"]] == "Überkreuzspiele" and (r_until - (r_from - 1)) % 2 != 0:
+                    st.warning("Anzahl der Teams muss gerade sein")
+                table = stage.table
+
+                table_from_until = table[(table["Rang"] >= r_from) & (table["Rang"] <= r_until)]
+
+                teams = table_from_until["Team"].tolist()
+                groups = table_from_until["Gruppe"].tolist()
+
+                st.session_state[keys["teams_list"]] = teams
+                st.session_state[keys["group_list"]] = groups
 
 
 def ui_second_selection_line(tournament: Tournament, keys: Dict):
@@ -428,9 +467,7 @@ def render_round_config(round_idx: int, tournament):
         "place_t2": f"round_{round_idx}_place_t2",
         "courts": f"courts_{round_idx}",
         "teams_list": f"teams_list_{round_idx}",
-        "teams1_list": f"teams1_list{round_idx}",
-        "teams2_list": f"teams2_list{round_idx}",
-        "stage_name": f"stage_name_{round_idx}",
+        "stage_name_from": f"stage_name_from_{round_idx}",
         "points_complete": f"points_complete_{round_idx}",
         "modus_complete": f"modus_complete_{round_idx}",
         "tiebreak_complete": f"tiebreak_complete_{round_idx}",
@@ -438,14 +475,15 @@ def render_round_config(round_idx: int, tournament):
         "modus_incomplete": f"modus_incomplete_{round_idx}",
         "tiebreak_incomplete": f"tiebreak_incomplete_{round_idx}",
         "game_modes": f"game_modes_{round_idx}",
-        "stage": f"stage{round_idx}",
-        "stage_ready": f"stage_ready{round_idx}",
-        "groups_max": f"groups_max{round_idx}",
-        "placing_slider": f"placing_slider{round_idx}",
-        "place_from": f"place_from{round_idx}",
-        "place_until": f"place_until{round_idx}",
-        "placing_bool": f"placing_bool{round_idx}",
-        "confirm_round": f"confirm_round{round_idx}",
+        "stage": f"stage_{round_idx}",
+        "stage_ready": f"stage_ready_{round_idx}",
+        "groups_max": f"groups_max_{round_idx}",
+        "placing_slider": f"placing_slider_{round_idx}",
+        "place_from": f"place_from_{round_idx}",
+        "place_until": f"place_until_{round_idx}",
+        "placing_bool": f"placing_bool_{round_idx}",
+        "confirm_round": f"confirm_round_{round_idx}",
+        "group_list": f"group_list_{round_idx}",
     }
 
     init_session_state_keys(keys=keys)
@@ -466,7 +504,8 @@ def render_round_config(round_idx: int, tournament):
 
     if st.button(label=f"✅ Runde {round_idx + 1} bestätigen"):
         new_stage = confirm_round(tournament=tournament, keys=keys)
-        render_stage_preview(stage=new_stage)
+        if new_stage.type == StageType.NONGROUP:
+            render_stage_preview(stage=new_stage)
 
 
 def render_round_generation(tournament):
