@@ -46,13 +46,6 @@ def init_session_state_keys(keys: Dict):
 def render_stage_preview(stage: Stage):
     """Zeigt eine aufklappbare Vorschau der aktuellen Runde an."""
     stage_name = stage.id
-    if not stage_name:
-        st.warning("Kein Rundenname gesetzt.")
-        return
-
-    if not stage:
-        st.warning("Keine Runde vorhanden.")
-        return
 
     modus = format_modus(
         modus_ui=ui_modus(stage.match_list[0].settings.modus),
@@ -122,13 +115,15 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
             st.warning("Es gibt zu wenige Felder für jede Gruppe.")
             st.stop()
         if st.session_state[keys["opponent_logic_choice"]] == "x. Plätze vs. y. Platz":
-            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts)
+            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts,
+                                  match_settings_complete)
         # elif st.session_state[keys["opponent_logic_choice"]] == "Platz x bis y aus Gesamtranking":
         else:
             groups_list = st.session_state[keys["group_list"]]
             group_1 = groups_list[:len(groups_list) // 2]
             group_2 = groups_list[len(groups_list) // 2:]
-            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts, group_1, group_2)
+            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts,
+                                  match_settings_complete, group_1, group_2)
         stage = Stage(id=stage_name, type=stage_typ, teams=teams, groups=groups)
     elif round_type == "Direkte Spiele":
         match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings_complete)
@@ -451,6 +446,26 @@ def ui_second_selection_line(tournament: Tournament, keys: Dict):
         render_from_x_until_y(tournament=tournament, keys=keys)
 
 
+def render_groups_review(stage: Stage) -> None:
+    """UI zur Anzeige der erstellten Gruppen (4 Spalten pro Zeile)"""
+    with st.expander(f"📋 Vorschau: {stage.id}"):
+        groups = stage.groups
+        for i in range(0, len(groups), 4):
+            cols = st.columns(4)
+            for j, group in enumerate(groups[i:i + 4]):
+                with cols[j]:
+                    modus = format_modus(
+                        modus_ui=ui_modus(group.settings.modus),
+                        pts=group.settings.points,
+                        tiebreak=group.settings.tiebreak
+                    )
+                    st.markdown(f"### 🟦 **Gruppe {group.name}**")
+                    st.markdown(f"**Modus: {modus}**")
+                    st.markdown(f"**Feld: {", ".join(map(str, group.assigned_courts))}**")
+                    for team in group.teams:
+                        st.write(f"**{team.lstrip()}**")
+
+
 def render_round_config(round_idx: int, tournament):
     """Zeigt ein einzelnes Runden-Setup mit dynamischen Keys an."""
     st.subheader(f"Runde {round_idx + 1}")
@@ -504,8 +519,18 @@ def render_round_config(round_idx: int, tournament):
 
     if st.button(label=f"✅ Runde {round_idx + 1} bestätigen"):
         new_stage = confirm_round(tournament=tournament, keys=keys)
+        if not new_stage.id:
+            st.warning("Kein Rundenname gesetzt.")
+            return
+
+        if not new_stage:
+            st.warning("Keine Runde vorhanden.")
+            return
+
         if new_stage.type == StageType.NONGROUP:
             render_stage_preview(stage=new_stage)
+        else:
+            render_groups_review(stage=new_stage)
 
 
 def render_round_generation(tournament):
