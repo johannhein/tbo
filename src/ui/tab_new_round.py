@@ -1,10 +1,10 @@
-from typing import Dict
+from typing import Dict, List
 import streamlit as st
 
 from config import UI_TO_MATCH_MODE, MATCH_MODE_TO_UI, format_modus, ui_modus
 from config.constants import DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE
 from core import Stage, Tournament
-from core.models import StageType, MatchSettings
+from core.models import StageType, MatchSettings, Group
 from utils import match_making_direct, match_making_x_vs_y, match_making_ranking, build_groups
 
 
@@ -25,9 +25,7 @@ def init_session_state_keys(keys: Dict):
     """Initialisiert alle session_state-Keys."""
     for k in keys.values():
         if k not in st.session_state:
-            if k == keys["game_modes"]:
-                st.session_state[k] = {}
-            elif k in {keys["teams_list"], keys["group_list"], keys["courts"]}:
+            if k in {keys["teams_list"], keys["group_list"], keys["courts"]}:
                 st.session_state[k] = []
             elif k in {keys["tiebreak_complete"], keys["tiebreak_incomplete"]}:
                 st.session_state[k] = DEFAULT_TIEBREAK
@@ -36,7 +34,7 @@ def init_session_state_keys(keys: Dict):
             elif k in {keys["stage_ready"], keys["placing_bool"]}:
                 st.session_state[k] = False
             elif k in {keys["modus_complete"], keys["modus_incomplete"]}:
-                st.session_state[k] = "2 Gewinnsätze"
+                st.session_state[k] = "2 Sätze"
             elif k == keys["groups_max"]:
                 st.session_state[k] = DEFAULT_GROUP_SIZE
             else:
@@ -92,6 +90,19 @@ def render_round_configs(tournament):
         render_round_config(i, tournament)
 
 
+def set_group_settings(groups: List[Group], settings: MatchSettings, keys: Dict) -> List[Group]:
+    for group in groups:
+        if group.complete:
+            group.settings = settings
+        else:
+            group.settings = MatchSettings(modus=UI_TO_MATCH_MODE[st.session_state[keys["modus_incomplete"]]],
+                                           points=st.session_state[keys["points_incomplete"]],
+                                           tiebreak=st.session_state[keys["tiebreak_incomplete"]])
+            group.build_matches_from_schema()
+
+    return groups
+
+
 def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
     courts = st.session_state[keys["courts"]]
     if not courts:
@@ -99,9 +110,9 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
         st.stop()
     stage_name = st.session_state[keys["stage_name_from"]]
     round_type = st.session_state[keys["round_type"]]
-    match_settings_complete = MatchSettings(modus=st.session_state[keys["game_modes"]]["complete"]["modus"],
-                                            points=st.session_state[keys["game_modes"]]["complete"]["points"],
-                                            tiebreak=st.session_state[keys["game_modes"]]["complete"]["tiebreak"])
+    match_settings_complete = MatchSettings(modus=UI_TO_MATCH_MODE[st.session_state[keys["modus_complete"]]],
+                                            points=st.session_state[keys["points_complete"]],
+                                            tiebreak=st.session_state[keys["tiebreak_complete"]])
 
     teams = st.session_state[keys["teams_list"]]
 
@@ -115,15 +126,15 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
             st.warning("Es gibt zu wenige Felder für jede Gruppe.")
             st.stop()
         if st.session_state[keys["opponent_logic_choice"]] == "x. Plätze vs. y. Platz":
-            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts,
-                                  match_settings_complete)
+            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts)
+            groups = set_group_settings(groups=groups, settings=match_settings_complete, keys=keys)
         # elif st.session_state[keys["opponent_logic_choice"]] == "Platz x bis y aus Gesamtranking":
         else:
             groups_list = st.session_state[keys["group_list"]]
             group_1 = groups_list[:len(groups_list) // 2]
             group_2 = groups_list[len(groups_list) // 2:]
-            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts,
-                                  match_settings_complete, group_1, group_2)
+            groups = build_groups(teams_1, teams_2, st.session_state[keys["groups_max"]], courts, group_1, group_2)
+            groups = set_group_settings(groups=groups, settings=match_settings_complete, keys=keys)
         stage = Stage(id=stage_name, type=stage_typ, teams=teams, groups=groups)
     elif round_type == "Direkte Spiele":
         match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings_complete)
@@ -150,45 +161,41 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
     return stage
 
 
-def render_match_settings(keys: Dict):
+def render_match_settings(keys: Dict, complete: bool = True):
     cols = st.columns(5)
+    if complete:
+        modus = "complete"
+    else:
+        modus = "incomplete"
+        st.write("Modus für unvollständige Gruppen")
+
     with cols[0]:
-        sets_complete = st.selectbox(
-            "Welcher Modus soll gespielt werden",
+        st.selectbox(
+            label="Welcher Modus soll gespielt werden",
             options=list(MATCH_MODE_TO_UI.values()),
-            key=keys["modus_complete"],
+            key=keys[f"modus_{modus}"],
         )
 
     with cols[1]:
-        points_complete = st.number_input(
-            "Punkte",
+        st.number_input(
+            label="Punkte",
             min_value=1,
             max_value=99,
             step=1,
-            key=keys["points_complete"],
+            key=keys[f"points_{modus}"],
         )
 
     with cols[2]:
-        if sets_complete in ["2 Gewinnsätze", "3 Gewinnsätze"]:
-            tiebreak_complete = st.number_input(
-                "Tiebreak‑Punkte",
+        if st.session_state[keys[f"modus_{modus}"]] in ["2 Gewinnsätze", "3 Gewinnsätze"]:
+            st.number_input(
+                label="Tiebreak‑Punkte",
                 min_value=1,
                 max_value=99,
                 step=1,
-                key=keys["tiebreak_complete"],
+                key=keys[f"tiebreak_{modus}"],
             )
         else:
-            tiebreak_complete = None
-
-        if keys["game_modes"] not in st.session_state:
-            st.session_state[keys["game_modes"]] = {}
-
-        if sets_complete:
-            st.session_state[keys["game_modes"]]["complete"] = {
-                "modus": UI_TO_MATCH_MODE[sets_complete],
-                "points": points_complete,
-                "tiebreak": tiebreak_complete,
-            }
+            st.session_state[keys[f"tiebreak_{modus}"]] = None
 
 
 def render_slider(tournament: Tournament, keys: Dict):
@@ -452,8 +459,8 @@ def render_groups_review(stage: Stage) -> None:
         groups = stage.groups
         for i in range(0, len(groups), 4):
             cols = st.columns(4)
-            for j, group in enumerate(groups[i:i + 4]):
-                with cols[j]:
+            for idx, group in enumerate(groups[i:i + 4]):
+                with cols[idx]:
                     modus = format_modus(
                         modus_ui=ui_modus(group.settings.modus),
                         pts=group.settings.points,
@@ -489,7 +496,6 @@ def render_round_config(round_idx: int, tournament):
         "points_incomplete": f"points_incomplete_{round_idx}",
         "modus_incomplete": f"modus_incomplete_{round_idx}",
         "tiebreak_incomplete": f"tiebreak_incomplete_{round_idx}",
-        "game_modes": f"game_modes_{round_idx}",
         "stage": f"stage_{round_idx}",
         "stage_ready": f"stage_ready_{round_idx}",
         "groups_max": f"groups_max_{round_idx}",
@@ -508,6 +514,10 @@ def render_round_config(round_idx: int, tournament):
     ui_second_selection_line(tournament=tournament, keys=keys)
 
     render_match_settings(keys=keys)
+
+    if st.session_state[keys["round_type"]] == "Gruppenphase" and st.session_state[keys["teams_list"]] and st.session_state[keys["groups_max"]]:
+        if len(st.session_state[keys["teams_list"]]) % st.session_state[keys["groups_max"]]:
+            render_match_settings(keys=keys, complete=False)
 
     checkbox = st.checkbox(
         label="Platzierungsrunde",
