@@ -16,9 +16,10 @@ def _init_session_state():
         st.session_state.next_round_matches = []
     if "num_rounds" not in st.session_state:
         st.session_state.num_rounds = 1
-
     if "tournament" not in st.session_state:
         st.session_state.tournament = None
+    if "stage_dict" not in st.session_state:
+        st.session_state.stage_dict = {}
 
 
 def init_session_state_keys(keys: Dict):
@@ -103,10 +104,13 @@ def set_group_settings(groups: List[Group], settings: MatchSettings, keys: Dict)
     return groups
 
 
-def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
+def confirm_round(keys: Dict) -> Stage:
     courts = st.session_state[keys["courts"]]
     if not courts:
         st.warning("Es wurden keine Felder gesetzt.")
+        st.stop()
+    if not st.session_state[keys["stage_name_from"]]:
+        st.warning("Es wurde keine ANme für die Runde eingeben.")
         st.stop()
     stage_name = st.session_state[keys["stage_name_from"]]
     round_type = st.session_state[keys["round_type"]]
@@ -155,7 +159,6 @@ def confirm_round(tournament: Tournament, keys: Dict) -> Stage:
 
     st.session_state[keys["stage"]] = stage
     st.session_state[keys["stage_ready"]] = True
-    tournament.stages[stage_name] = Stage(id=stage_name, type=stage_typ, teams=teams)
 
     # st.success(f"✅ Runde '{stage_name}' wurde erstellt.")
     return stage
@@ -528,14 +531,8 @@ def render_round_config(round_idx: int, tournament):
         render_slider(tournament=tournament, keys=keys)
 
     if st.button(label=f"✅ Runde {round_idx + 1} bestätigen"):
-        new_stage = confirm_round(tournament=tournament, keys=keys)
-        if not new_stage.id:
-            st.warning("Kein Rundenname gesetzt.")
-            return
-
-        if not new_stage:
-            st.warning("Keine Runde vorhanden.")
-            return
+        new_stage = confirm_round(keys=keys)
+        st.session_state.stage_dict[new_stage.id] = new_stage
 
     if keys["stage_ready"] not in st.session_state:
         st.session_state[keys["stage_ready"]] = False
@@ -547,9 +544,29 @@ def render_round_config(round_idx: int, tournament):
             render_groups_review(stage=stage_render)
 
 
+def render_delete_stage():
+    if st.session_state.stage_dict:
+        cols = st.columns(5)
+
+        with cols[0]:
+            options = st.session_state.stage_dict.keys()
+            delete_stage = st.selectbox(
+                label="Welche Runde soll gelöscht werden?",
+                options=["-- keine Auswahl --"] + options
+            )
+
+        with cols[1]:
+            st.write("")
+            if st.button("Runden löschen"):
+                st.session_state.stage_dict.pop(delete_stage, None)
+
+
 def render_round_generation(tournament):
     """Zeigt den Button zum Generieren der Runden an."""
-    if st.button("Runden generieren", key="generate_rounds"):
+    if st.button("Runden speichern", key="generate_rounds"):
+        if "stage_dict" in st.session_state:
+            for stage_name, stage_obj in st.session_state.stage_dict.items():
+                tournament.stages[stage_name] = stage_obj
         st.session_state.next_round_generated = True
         st.success(f"✅ {len(st.session_state.next_round_matches)} Runden wurden konfiguriert.")
         print(tournament.stages.keys())
@@ -572,4 +589,5 @@ def tab_new_round():
     # Steuere Runden-UI
     render_round_configs(tournament)
     render_round_controls()
+    render_delete_stage()
     render_round_generation(tournament)
