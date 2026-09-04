@@ -1,4 +1,3 @@
-from math import gcd
 from typing import List, Dict
 
 from core import Match, MatchID, MatchSettings, Group
@@ -116,13 +115,12 @@ def match_making_x_vs_y(teams_1: List[str], teams_2: List[str], courts: List[int
     return matches
 
 
-def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, courts: List,
+def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, courts: List, match_settings: MatchSettings,
                  group_1: List = None, group_2: List = None) -> List[Group]:
     """
     Erzeugt Gruppen aus teams_1 und einer verschobenen teams_2-Liste.
     Dabei wird automatisch ein k gesucht, sodass kein Team gegen ein Team aus seiner vorherigen Gruppe spielt.
     """
-
     if group_1 and group_2:
         k = find_k(group_1, group_2, groups_size)
     else:
@@ -143,17 +141,19 @@ def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, court
             if idx < len(list_total):
                 groups[i].append(list_total[idx])
 
+    # todo incomplete group settings
     stage_groups = []
     for idx, teams in enumerate(groups):
-        group = Group( name=str(idx + 1), teams=teams, teams_target=groups_size)
+        group = Group(name=str(idx + 1), teams=teams, teams_target=groups_size)
         group.assign_courts([courts[idx]])
+        group.settings = match_settings
         group.build_matches_from_schema()
         stage_groups.append(group)
 
     return stage_groups
 
 
-def find_k( teams_1: List, teams_2: List, groups_size: int) -> int:
+def find_k(teams_1: List, teams_2: List, groups_size: int) -> int:
     """Findet ein k, sodass kein gemeinsames Team aus teams_1 und teams_2 in derselben Gruppe landet."""
 
     if not teams_2:
