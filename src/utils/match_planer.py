@@ -115,7 +115,7 @@ def match_making_x_vs_y(teams_1: List[str], teams_2: List[str], courts: List[int
     return matches
 
 
-def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, courts: List, match_settings: MatchSettings,
+def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, courts: List,
                  group_1: List = None, group_2: List = None) -> List[Group]:
     """
     Erzeugt Gruppen aus teams_1 und einer verschobenen teams_2-Liste.
@@ -146,7 +146,6 @@ def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, court
     for idx, teams in enumerate(groups):
         group = Group(name=str(idx + 1), teams=teams, teams_target=groups_size)
         group.assign_courts([courts[idx]])
-        group.settings = match_settings
         group.build_matches_from_schema()
         stage_groups.append(group)
 
