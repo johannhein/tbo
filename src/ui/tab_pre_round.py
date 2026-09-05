@@ -469,7 +469,7 @@ def tab_summary():
             stage.table,
             hide_index=True,
             width='content',
-            height=len(stage.teams) * 34 + 50,
+            height="content",
         )
 
     with cols[1]:
