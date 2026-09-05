@@ -2,7 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Dict, Optional, Any, Tuple
-
 import pandas as pd
 
 from config import SCHEMA_MAP

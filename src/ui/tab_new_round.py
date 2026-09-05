@@ -295,7 +295,7 @@ def ui_first_selection_line(tournament: Tournament, keys: Dict):
     with cols[2]:
         st.selectbox(
             label="Modus",
-            options=["Überkreuzspiele", "Direkte Spiele", "Gruppenphase"],
+            options=["Direkte Spiele", "Gruppenphase", "Überkreuzspiele"],
             key=keys["round_type"]
         )
 

@@ -109,22 +109,68 @@ if "data" not in st.session_state:
 # ----------------------------------------------------------------------
 # Tabs
 # ----------------------------------------------------------------------
-tab_names = [
-    "⚙️ Voreinstellungen",
-    "⚙️ Neues Turnier",
-    "📋 Vorrunde",
-    # "🏟️ Felder",
-    # "📊 Gruppen‑Ranglisten",
-    # "🥇 Finalrunde",
-    # "🏅 Endstand",
-    # "👤 Team‑Ansicht",
-    # "⚙️ Admin",
-]
-tabs = st.tabs(tab_names)
+def tab_standings():
+    st.header("Platzierungen")
+    st.write("Hier sollen mal die Platzierungen angezeigt werden.")
+# --- Dynamische Tab-Erstellung ---
 
-with tabs[0]:
-    tab_presets()
-with tabs[1]:
-    tab_new_tournament()
-with tabs[2]:
-    tab_group_stage()
+def render_stage(id):
+    st.header(id)
+
+# 1. Hole die Runden aus dem Session-State
+stage_dict = st.session_state.get("stage_dict", {})
+
+# 2. Erstelle Liste der Tabs (dynamisch + statisch)
+tabs_config = []
+
+# ✅ Statischer Tab: Voreinstellungen (immer sichtbar)
+tabs_config.append({
+    "name": "⚙️ Voreinstellungen",
+    "func": tab_presets,
+    "condition": True
+})
+
+# ✅ Statischer Tab: Neues Turnier (nur, wenn kein Turnier existiert)
+tabs_config.append({
+    "name": "⚙️ Neues Turnier",
+    "func": tab_new_tournament,
+    "condition": True
+})
+
+tabs_config.append({
+    "name": "📋 Vorrunde",
+    "func": tab_group_stage,
+    "condition": True
+})
+
+# ✅ Dynamische Tabs: Eine pro Runde aus stage_dict
+if stage_dict:
+    for stage_id, stage_data in stage_dict.items():
+        tabs_config.append({
+            "name": f"🎯 {stage_id}",
+            "func": lambda id=stage_id: render_stage(id),  # Beispiel-Funktion
+            "condition": True
+        })
+
+# ✅ Statischer Tab: Platzierungen (nur, wenn Runden existieren)
+tabs_config.append({
+    "name": "🏅 Platzierungen",
+    "func": tab_standings,
+    "condition": True
+})
+
+# 3. Filtere nur sichtbare Tabs
+visible_tabs = [tab for tab in tabs_config if tab["condition"]]
+
+# 4. Erstelle Tabs nur, wenn vorhanden
+if visible_tabs:
+    tab_names = [tab["name"] for tab in visible_tabs]
+    tabs = st.tabs(tab_names)
+
+    # Füge Inhalt hinzu
+    for i, tab in enumerate(visible_tabs):
+        with tabs[i]:
+            tab["func"]()
+else:
+    st.info("Keine Tabs verfügbar. Bitte erstellen Sie ein Turnier.")
+

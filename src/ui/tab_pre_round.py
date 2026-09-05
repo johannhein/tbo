@@ -95,9 +95,7 @@ def _display_group_row_content(group, group_name: str):
 
 
 def display_group_row(group_names: list, idx: int, selected_team: str):
-    """
-    Zeigt eine Zeile mit zwei Gruppen an (max. zwei pro Zeile).
-    """
+    """Zeigt eine Zeile mit zwei Gruppen an (max. zwei pro Zeile)."""
     cols = st.columns(2)
 
     # Gruppe 1
