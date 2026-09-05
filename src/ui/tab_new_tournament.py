@@ -6,7 +6,7 @@ from typing import List, Dict
 import streamlit as st
 import pandas as pd
 
-from config.constants import IMPORT_DIR, MAX_COURT_NUM, DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE
+from config.constants import IMPORT_DIR, MAX_COURT_NUM, DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE, NAME_FIRST_ROUND
 from db import save_tournament
 from db.court_store import get_used_courts, set_courts
 from db.days_store import get_courts_for_type
@@ -413,21 +413,19 @@ def ui_edit_team_names(df_table: pd.DataFrame, tournament_type: str) -> None:
     column_cfg = {
         "team": st.column_config.Column(
             label="Team‑Name",
-            width=300,
+            width="large",
         ),
     }
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        edited = st.data_editor(
-            edit_df,
-            num_rows="dynamic",          # Add‑ und Delete‑Buttons aktiv
-            width="stretch",
-            hide_index=False,            # Index‑Spalte (Müll‑Icon) bleibt sichtbar
-            column_config=column_cfg,
-            key="team_name_editor",
-        )
+    edited = st.data_editor(
+        edit_df,
+        num_rows="dynamic",          # Add‑ und Delete‑Buttons aktiv
+        width="content",
+        height="content",
+        hide_index=False,            # Index‑Spalte (Müll‑Icon) bleibt sichtbar
+        column_config=column_cfg,
+        key="team_name_editor",
+    )
 
     cols = st.columns(4)
 
@@ -718,7 +716,7 @@ def button_create_tournament(tournament_type: str):
         name = "TBO " + tournament_type + " " + str(datetime.datetime.now().year)
         tournament = Tournament(name=name, type=tournament_type, courts=st.session_state["selected_courts"], teams=st.session_state["teams"])
         group_list: List[Group] = list(groups.values())
-        stage = Stage(id="Vorrunde", type=StageType.GROUP, teams=st.session_state["teams"],
+        stage = Stage(id=NAME_FIRST_ROUND, type=StageType.GROUP, teams=st.session_state["teams"],
                       groups=group_list)
 
         tournament.add_stage(stage)
