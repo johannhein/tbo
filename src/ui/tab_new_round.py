@@ -78,21 +78,22 @@ def validate_tournament() -> bool:
     return True
 
 
-def render_round_controls():
+def render_round_controls(old_stage_name: str):
     """Zeigt den Button zum Hinzufügen neuer Runden an."""
-    if st.button("Weitere Runde einstellen", key="add_round"):
+    if st.button("Weitere Runde einstellen", key=f"add_round_{old_stage_name}"):
         st.session_state.num_rounds += 1
 
 
-def render_round_configs(tournament):
+def render_round_configs(tournament, old_stage_name: str):
     """Erstellt dynamisch die Runden-Configs basierend auf num_rounds."""
     st.session_state.next_round_matches = []
     for i in range(st.session_state.num_rounds):
-        render_round_config(i, tournament)
+        render_round_config(i, tournament, old_stage_name)
 
 
 def set_group_settings(groups: List[Group], settings: MatchSettings, keys: Dict) -> List[Group]:
     """Spielmodus für die Gruppen setzen."""
+    match_id = 1
     for group in groups:
         if group.complete:
             group.settings = settings
@@ -100,7 +101,7 @@ def set_group_settings(groups: List[Group], settings: MatchSettings, keys: Dict)
             group.settings = MatchSettings(modus=UI_TO_MATCH_MODE[st.session_state[keys["modus_incomplete"]]],
                                            points=st.session_state[keys["points_incomplete"]],
                                            tiebreak=st.session_state[keys["tiebreak_incomplete"]])
-            group.build_matches_from_schema()
+        match_id = group.build_matches_from_schema(match_id)
 
     return groups
 
@@ -487,38 +488,37 @@ def render_groups_review(stage: Stage) -> None:
                         st.write(f"**{team.lstrip()}**")
 
 
-def render_round_config(round_idx: int, tournament):
+def render_round_config(round_idx: int, tournament: Tournament, old_stage_name: str):
     """Beinhaltet alle Funktionen zum Anlegen einer neuen Runde."""
     st.subheader(f"Runde {round_idx + 1}")
 
     # Dynamische Keys
     keys = {
-        "round_type": f"round_{round_idx}_type",
-        "opponent_logic_choice": f"round_{round_idx}_opponent_logic",
-        "stage_direct": f"round_{round_idx}_stage_direct",
-        "place_direct": f"round_{round_idx}_place_direct",
-        "stage_t1": f"round_{round_idx}_stage_t1",
-        "place_t1": f"round_{round_idx}_place_t1",
-        "stage_t2": f"round_{round_idx}_stage_t2",
-        "place_t2": f"round_{round_idx}_place_t2",
-        "courts": f"courts_{round_idx}",
-        "teams_list": f"teams_list_{round_idx}",
-        "stage_name_from": f"stage_name_from_{round_idx}",
-        "points_complete": f"points_complete_{round_idx}",
-        "modus_complete": f"modus_complete_{round_idx}",
-        "tiebreak_complete": f"tiebreak_complete_{round_idx}",
-        "points_incomplete": f"points_incomplete_{round_idx}",
-        "modus_incomplete": f"modus_incomplete_{round_idx}",
-        "tiebreak_incomplete": f"tiebreak_incomplete_{round_idx}",
-        "stage": f"stage_{round_idx}",
-        "stage_ready": f"stage_ready_{round_idx}",
-        "groups_max": f"groups_max_{round_idx}",
-        "placing_slider": f"placing_slider_{round_idx}",
-        "place_from": f"place_from_{round_idx}",
-        "place_until": f"place_until_{round_idx}",
-        "placing_bool": f"placing_bool_{round_idx}",
-        "confirm_round": f"confirm_round_{round_idx}",
-        "group_list": f"group_list_{round_idx}",
+        "round_type": f"round_{old_stage_name}_{round_idx}_type",
+        "opponent_logic_choice": f"round_{old_stage_name}_{round_idx}_opponent_logic",
+        "stage_direct": f"round_{old_stage_name}_{round_idx}_stage_direct",
+        "place_direct": f"round_{old_stage_name}_{round_idx}_place_direct",
+        "stage_t1": f"round_{old_stage_name}_{round_idx}_stage_t1",
+        "place_t1": f"round_{old_stage_name}_{round_idx}_place_t1",
+        "stage_t2": f"round_{old_stage_name}_{round_idx}_stage_t2",
+        "place_t2": f"round_{old_stage_name}_{round_idx}_place_t2",
+        "courts": f"courts_{old_stage_name}_{round_idx}",
+        "teams_list": f"teams_list_{old_stage_name}_{round_idx}",
+        "stage_name_from": f"stage_name_from_{old_stage_name}_{round_idx}",
+        "points_complete": f"points_complete_{old_stage_name}_{round_idx}",
+        "modus_complete": f"modus_complete_{old_stage_name}_{round_idx}",
+        "tiebreak_complete": f"tiebreak_complete_{old_stage_name}_{round_idx}",
+        "points_incomplete": f"points_incomplete_{old_stage_name}_{round_idx}",
+        "modus_incomplete": f"modus_incomplete_{old_stage_name}_{round_idx}",
+        "tiebreak_incomplete": f"tiebreak_incomplete_{old_stage_name}_{round_idx}",
+        "stage": f"stage_{old_stage_name}_{round_idx}",
+        "stage_ready": f"stage_ready_{old_stage_name}_{round_idx}",
+        "groups_max": f"groups_max_{old_stage_name}_{round_idx}",
+        "placing_slider": f"placing_slider_{old_stage_name}_{round_idx}",
+        "place_from": f"place_from_{old_stage_name}_{round_idx}",
+        "place_until": f"place_until_{old_stage_name}_{round_idx}",
+        "placing_bool": f"placing_bool_{old_stage_name}_{round_idx}",
+        "group_list": f"group_list_{old_stage_name}_{round_idx}",
     }
 
     init_session_state_keys(keys=keys)
@@ -541,7 +541,7 @@ def render_round_config(round_idx: int, tournament):
     if checkbox:
         render_slider(tournament=tournament, keys=keys)
 
-    if st.button(label=f"✅ Runde {round_idx + 1} bestätigen"):
+    if st.button(label=f"✅ Runde {round_idx + 1} bestätigen", key=f"confirm_round_{old_stage_name}_{round_idx}"):
         new_stage = confirm_round(keys=keys)
         st.session_state.stage_dict[new_stage.id] = new_stage
 
@@ -555,7 +555,7 @@ def render_round_config(round_idx: int, tournament):
             render_groups_review(stage=stage_render)
 
 
-def render_delete_stage():
+def render_delete_stage(old_stage_name: str):
     """Ermöglicht das Löschen einer ausgewählten Runde aus der Stage-Liste."""
     if st.session_state.stage_dict:
         cols = st.columns(5)
@@ -566,18 +566,19 @@ def render_delete_stage():
                 label="Welche Runde soll gelöscht werden?",
                 options=["-- keine Auswahl --"] + options,
                 index=0,
+                key=f"delete_selection_{old_stage_name}"
             )
 
         with cols[1]:
             st.write("")
-            if st.button("Runden löschen"):
+            if st.button(label="Runden löschen", key=f"delete_round_{old_stage_name}"):
                 if delete_stage != "-- keine Auswahl --":
                     st.session_state.stage_dict.pop(delete_stage, None)
 
 
-def render_round_generation(tournament):
+def render_round_generation(tournament, old_stage_name):
     """Zeigt den Button zum Generieren der Runden an."""
-    if st.button("Runden speichern", key="generate_rounds"):
+    if st.button(label="Runden speichern", key=f"generate_rounds_{old_stage_name}"):
         if "stage_dict" in st.session_state:
             for stage_name, stage_obj in st.session_state.stage_dict.items():
                 tournament.stages[stage_name] = stage_obj
@@ -586,8 +587,8 @@ def render_round_generation(tournament):
         print(tournament.stages.keys())
 
 
-def tab_new_round():
-    """Erstellt den neue Runden Tab."""
+def tab_new_round(old_stage_name: str):
+    """Erstellt den neuen Runden Tab."""
     if "tournament" not in st.session_state or not st.session_state["tournament_loaded"]:
         st.info("Bitte lade ein Turnier im Tab „Übersicht“.")
         return
@@ -602,7 +603,8 @@ def tab_new_round():
     tournament = st.session_state["tournament"]
 
     # Steuere Runden-UI
-    render_round_configs(tournament)
-    render_round_controls()
-    render_delete_stage()
-    render_round_generation(tournament)
+    old_stage_name = old_stage_name.lower()
+    render_round_configs(tournament, old_stage_name)
+    render_round_controls(old_stage_name)
+    render_delete_stage(old_stage_name)
+    render_round_generation(tournament, old_stage_name)
