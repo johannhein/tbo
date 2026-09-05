@@ -176,6 +176,7 @@ class Tournament:
     stages: Dict[StageID, Stage] = field(default_factory=dict)
     current_stage_id: str | None = None
     status: str = "planning"  # planning, running, finished
+    standings: Dict[int, str] = field(default_factory=dict)
 
     def add_stage(self, stage: Stage) -> None:
         """Fügt eine neue Stage hinzu – wirft bei doppelter ID."""
