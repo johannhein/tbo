@@ -2,7 +2,7 @@ import streamlit as st
 
 from config.constants import TOURNAMENT_NAME
 from db import init_db, get_connection, table_exists, create_table_and_fill
-from ui import style, tab_standings
+from ui import style, tab_standings, tab_next_stage
 from ui.tab_new_tournament import tab_new_tournament
 from ui.tab_pre_round import tab_group_stage
 from ui.tab_presets import tab_presets
@@ -139,7 +139,7 @@ if stage_dict:
     for stage_id, stage_data in stage_dict.items():
         tabs_config.append({
             "name": f"🎯 {stage_id}",
-            "func": lambda stage_name=stage_id: render_stage(stage_name),
+            "func": lambda stage_name=stage_id, data=stage_data: tab_next_stage(stage_name, data),
             "condition": True
         })
 
