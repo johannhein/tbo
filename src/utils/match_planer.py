@@ -146,7 +146,6 @@ def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, court
     for idx, teams in enumerate(groups):
         group = Group(name=str(idx + 1), teams=teams, teams_target=groups_size)
         group.assign_courts([courts[idx]])
-        group.build_matches_from_schema()
         stage_groups.append(group)
 
     return stage_groups
