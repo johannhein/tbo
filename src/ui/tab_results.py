@@ -142,7 +142,7 @@ def tab_results(stage_name: str):
     if st.button("🎲 Zufällige Ergebnisse simulieren", key=f"simulate_results_{stage_name}", type="secondary"):
         st.info("🎲 Simuliere zufällige Ergebnisse für alle Gruppen...")
 
-        simulate_random_results(tournament)
+        simulate_random_results(tournament, stage_name)
         st.rerun()
 
     if stage_name in tournament.stages:
