@@ -123,8 +123,8 @@ def simulate_random_results(tournament: Tournament, stage_name: str):
                         sets_won[1] += 1
 
                     # Setze in Session-State
-                    key_a = f"set_{match.id}_a{set_idx}"
-                    key_b = f"set_{match.id}_b{set_idx}"
+                    key_a = f"{stage_name}_set_{match.id}_a{set_idx}"
+                    key_b = f"{stage_name}_set_{match.id}_b{set_idx}"
                     st.session_state[key_a] = p1
                     st.session_state[key_b] = p2
 
