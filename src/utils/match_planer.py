@@ -3,6 +3,40 @@ from typing import List, Dict
 from core import Match, MatchID, MatchSettings, Group
 
 
+def match_making_all(teams: List[str], courts: List[int], settings: MatchSettings,
+                     start_match_id: MatchID = 1) -> List[Match]:
+    n = len(teams)
+    if not n % 2:
+        mid = n // 2
+    else:
+        mid = (n + 1) // 2
+
+    teams_high = teams[:mid]
+    teams_low = teams[mid:]
+    num_courts = len(courts)
+    matches: List[Match] = []
+
+    for idx, team in enumerate(teams_high):
+        match_id = start_match_id + idx
+        court_idx = idx % num_courts
+        court = courts[court_idx]
+        opponent = teams_low[idx]
+
+        if num_courts == len(teams_high):
+            match = Match.create(match_id=match_id, court=court, t1=team, t2=opponent, settings_match=settings)
+        else:
+            if idx + num_courts < len(teams_low):
+                id_ref = idx + num_courts
+            else:
+                id_ref = idx - num_courts
+            ref = teams_low[id_ref]
+            match = Match.create(match_id=match_id, court=court, t1=team, t2=opponent, ref=ref, settings_match=settings)
+
+        matches.append(match)
+
+    return matches
+
+
 def match_making_direct(teams: List[str], courts: List[int], settings: MatchSettings,
                         start_match_id: MatchID = 1) -> List[Match]:
     num_courts = len(courts)

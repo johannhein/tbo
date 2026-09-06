@@ -6,7 +6,7 @@ from config import UI_TO_MATCH_MODE, MATCH_MODE_TO_UI, format_modus, ui_modus
 from config.constants import DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE
 from core import Stage, Tournament
 from core.models import StageType, MatchSettings, Group
-from utils import match_making_direct, match_making_x_vs_y, match_making_ranking, build_groups
+from utils import match_making_direct, match_making_x_vs_y, match_making_ranking, build_groups, match_making_all
 
 
 def _init_session_state():
@@ -146,6 +146,9 @@ def confirm_round(keys: Dict) -> Stage:
         stage = Stage(id=stage_name, type=stage_typ, teams=teams, groups=groups)
     elif round_type == "Direkte Spiele":
         match_list = match_making_direct(teams=teams, courts=courts, settings=match_settings_complete)
+        stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
+    elif round_type == "Vs. gleichplazierte":
+        match_list = match_making_all(teams=teams, courts=courts, settings=match_settings_complete)
         stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
     # elif round_type == "Überkreuzspiele"
     else:
@@ -289,7 +292,7 @@ def ui_first_selection_line(tournament: Tournament, keys: Dict):
     with cols[2]:
         st.selectbox(
             label="Modus",
-            options=["Direkte Spiele", "Gruppenphase", "Überkreuzspiele"],
+            options=["Direkte Spiele", "Gruppenphase", "Überkreuzspiele", "Vs. gleichplazierte"],
             key=keys["round_type"]
         )
 
@@ -300,16 +303,27 @@ def ui_first_selection_line(tournament: Tournament, keys: Dict):
                 options=["x. Plätze vs. y. Platz", "Platz x bis y aus Gesamtranking"],
                 key=keys["opponent_logic_choice"]
             )
-        elif st.session_state[keys["round_type"]] == "Direkte Spiele":
+        elif st.session_state[keys["round_type"]] in ["Direkte Spiele", "Vs. gleichplazierte"]:
             st.selectbox(
                 label="Aus welcher Runde sollen die Teams kommen?",
                 options=list(tournament.stages.keys()),
                 key=keys["stage_direct"]
             )
 
+            if st.session_state[keys["round_type"]] == "Vs. gleichplazierte" and st.session_state[keys["stage_direct"]]:
+                stage = tournament.stages[st.session_state[keys["stage_direct"]]]
+                if len(stage.groups) != 2:
+                    st.warning("Die gewählte Runde darf nur 2 Gruppen bzw Spiele haben.")
+                if stage.type == StageType.GROUP:
+                    list_teams = []
+                    for group in stage.groups:
+                        list_teams.extend(group.table.sort_values(by="Rang")["Team"].tolist())
+                    st.session_state[keys["teams_list"]] = list_teams
+
     with cols[4]:
-        if st.session_state[keys["stage_direct"]] is not None and st.session_state[keys["stage_direct"]] in tournament.stages:
-            render_direct_stage(tournament=tournament, keys=keys)
+        if st.session_state[keys["stage_direct"]] is not None:
+            if st.session_state[keys["round_type"]] == "Direkte Spiele":
+                render_direct_stage(tournament=tournament, keys=keys)
         else:
             st.session_state[keys["teams_list"]] = []
 
@@ -554,10 +568,10 @@ def render_delete_stage(old_stage_name: str):
         cols = st.columns(5)
 
         with cols[0]:
-            options = list(st.session_state.stage_dict.keys())
+            stage_list = list(st.session_state.stage_dict.keys())
             delete_stage = st.selectbox(
                 label="Welche Runde soll gelöscht werden?",
-                options=["-- keine Auswahl --"] + options,
+                options=["-- keine Auswahl --"] + stage_list,
                 index=0,
                 key=f"delete_selection_{old_stage_name}"
             )

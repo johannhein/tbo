@@ -24,7 +24,6 @@ def tab_standings():
             for idx, team in enumerate(stage.table["Team"]):
                 place = idx + stage.standing
                 rankings.append((place, team))
-
         elif len(stage.teams) == 2:
             winner = stage.winner[0] if stage.winner else None
             loser = stage.loser[0] if stage.loser else None
@@ -33,6 +32,12 @@ def tab_standings():
                 rankings.append((stage.standing, winner))
             if loser:
                 rankings.append((stage.standing + 1, loser))
+        else:
+            place = stage.standing
+            for match in stage.match_list:
+                rankings.append((place, match.winner))
+                rankings.append((place + 1, match.loser))
+                place = place + 2
 
     rankings.sort(key=lambda x: x[0])
 
