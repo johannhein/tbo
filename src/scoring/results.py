@@ -1,10 +1,10 @@
 import random
-
 import streamlit as st
 from typing import Dict, Tuple
 
 from config import MATCH_MODE_TO_SETS
-from core import Match, MatchMode
+from core import Match, MatchMode, Tournament
+from core.models import StageType
 
 
 def process_match_scores(match: Match, scores: Dict[int, Tuple[int, int]]) -> bool:
@@ -66,68 +66,70 @@ def process_match_scores(match: Match, scores: Dict[int, Tuple[int, int]]) -> bo
     return True
 
 
-def simulate_random_results(tournament):
+def simulate_random_results(tournament: Tournament, stage_name: str):
     """
     Simuliert zufällige Ergebnisse für alle Matches in allen Gruppen des Turniers.
     """
     # todo später ersetzen
-    stage = next(iter(tournament.stages.values()))
-    groups = stage.groups
+    stage = tournament.stages[stage_name]
+    if stage.type == StageType.GROUP:
+        groups = stage.groups
 
-    for group in groups:
-        modus = group.settings.modus
-        points = group.settings.points
-        tiebreak_points = group.settings.tiebreak
-        num_sets = len(MATCH_MODE_TO_SETS[modus])
+        for group in groups:
+            modus = group.settings.modus
+            points = group.settings.points
+            tiebreak_points = group.settings.tiebreak
+            num_sets = len(MATCH_MODE_TO_SETS[modus])
 
-        for match in group.match_list:
-            scores = {}
-            sets_won = [0, 0]  # [Team1, Team2]
+            for match in group.match_list:
+                scores = {}
+                sets_won = [0, 0]  # [Team1, Team2]
 
-            # Simuliere Sätze nur, solange das Match noch offen ist
-            for set_idx in range(num_sets):
-                # Ist dieser Satz ein Tiebreak? (nur bei BEST_OF_3, 3. Satz)
-                is_tiebreak = (modus == MatchMode.BEST_OF_3 and set_idx == 2)
-                target = tiebreak_points if is_tiebreak else points
-                min_diff = 2
+                # Simuliere Sätze nur, solange das Match noch offen ist
+                for set_idx in range(num_sets):
+                    # Ist dieser Satz ein Tiebreak? (nur bei BEST_OF_3, 3. Satz)
+                    is_tiebreak = (modus == MatchMode.BEST_OF_3 and set_idx == 2)
+                    target = tiebreak_points if is_tiebreak else points
+                    min_diff = 2
 
-                # Nur simulieren, wenn das Match noch offen ist
-                # Bei BEST_OF_3: nur 3. Satz, wenn 1:1
-                if modus == MatchMode.BEST_OF_3 and set_idx == 2:
-                    if sets_won[0] == 1 and sets_won[1] == 1:
-                        # Nur wenn 1:1 → Tiebreak simulieren
-                        pass
+                    # Nur simulieren, wenn das Match noch offen ist
+                    # Bei BEST_OF_3: nur 3. Satz, wenn 1:1
+                    if modus == MatchMode.BEST_OF_3 and set_idx == 2:
+                        if sets_won[0] == 1 and sets_won[1] == 1:
+                            # Nur wenn 1:1 → Tiebreak simulieren
+                            pass
+                        else:
+                            # Match entschieden → 3. Satz nicht nötig
+                            # Setze 0:0 (oder überspringe)
+                            continue  # Überspringe Simulation
+
+                    # Zufällige Startpunkte
+                    p1 = random.randint(1, target)
+                    p2 = random.randint(1, target)
+
+                    # Solange: Abstand zu klein oder noch kein Team target erreicht hat
+                    while not ((p1 >= target or p2 >= target) and abs(p1 - p2) >= min_diff):
+                        if p1 > p2 or p1 == p2:
+                            p1 += 1
+                        else:
+                            p2 += 1
+
+                    scores[set_idx + 1] = (p1, p2)
+
+                    # Zähle Sätze
+                    if p1 > p2:
+                        sets_won[0] += 1
                     else:
-                        # Match entschieden → 3. Satz nicht nötig
-                        # Setze 0:0 (oder überspringe)
-                        continue  # Überspringe Simulation
+                        sets_won[1] += 1
 
-                # Zufällige Startpunkte
-                p1 = random.randint(1, target)
-                p2 = random.randint(1, target)
+                    # Setze in Session-State
+                    key_a = f"set_{match.id}_a{set_idx}"
+                    key_b = f"set_{match.id}_b{set_idx}"
+                    st.session_state[key_a] = p1
+                    st.session_state[key_b] = p2
 
-                # Solange: Abstand zu klein oder noch kein Team target erreicht hat
-                while not ((p1 >= target or p2 >= target) and abs(p1 - p2) >= min_diff):
-                    if p1 > p2 or p1 == p2:
-                        p1 += 1
-                    else:
-                        p2 += 1
-
-                scores[set_idx + 1] = (p1, p2)
-
-                # Zähle Sätze
-                if p1 > p2:
-                    sets_won[0] += 1
-                else:
-                    sets_won[1] += 1
-
-                # Setze in Session-State
-                key_a = f"set_{match.id}_a{set_idx}"
-                key_b = f"set_{match.id}_b{set_idx}"
-                st.session_state[key_a] = p1
-                st.session_state[key_b] = p2
-
-            # Aktualisiere Match-Status
-            process_match_scores(match=match, scores=scores)
-
-    st.success("✅ Zufällige Ergebnisse wurden erfolgreich simuliert und in die Eingabefelder eingetragen!")
+                # Aktualisiere Match-Status
+                process_match_scores(match=match, scores=scores)
+        st.success("✅ Zufällige Ergebnisse wurden erfolgreich simuliert und in die Eingabefelder eingetragen!")
+    else:
+        st.warning("Man kann nur Gruppen simulieren. Warte auf ein Update.")
