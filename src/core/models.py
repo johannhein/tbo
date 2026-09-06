@@ -215,6 +215,7 @@ class Stage:
     teams: List[str]
     groups: List[Group] | None = None
     match_list: List[Match] | None = None
+    standing: int | None = None
     _table_cache: Optional[pd.DataFrame] = None
     _placement_tables_cache: Optional[pd.DataFrame] = None
     _last_match_list_hash: Optional[int] = None
@@ -222,9 +223,15 @@ class Stage:
     @property
     def is_complete(self) -> bool:
         """Prüft, ob alle Matches in dieser Stage abgeschlossen sind."""
-        if not self.match_list:
-            return False
-        return all(match.status == MatchStatus.FINISHED for match in self.match_list)
+        if self.type == StageType.GROUP:
+            for group in self.groups:
+                if not all(match.status == MatchStatus.FINISHED for match in group.match_list):
+                    return False
+            return True
+        else:
+            if not self.match_list:
+                return False
+            return all(match.status == MatchStatus.FINISHED for match in self.match_list)
 
     @property
     def table(self) -> pd.DataFrame | None:
@@ -371,6 +378,9 @@ class Stage:
                 })
 
         return all_teams
+
+    def add_standing(self, standing: int):
+        self.standing = standing
 
     def add_team(self, team_name: str):
         if team_name not in self.teams:
