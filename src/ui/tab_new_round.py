@@ -1,5 +1,6 @@
 from typing import Dict, List
 import streamlit as st
+from altair.theme import options
 
 from config import UI_TO_MATCH_MODE, MATCH_MODE_TO_UI, format_modus, ui_modus
 from config.constants import DEFAULT_TIEBREAK, DEFAULT_POINTS, DEFAULT_GROUP_SIZE
@@ -32,7 +33,7 @@ def init_session_state_keys(keys: Dict):
                 st.session_state[k] = DEFAULT_TIEBREAK
             elif k in {keys["points_complete"], keys["points_incomplete"]}:
                 st.session_state[k] = DEFAULT_POINTS
-            elif k == keys["placing_bool"]:
+            elif k == keys["standing_bool"]:
                 st.session_state[k] = False
             elif k in {keys["modus_complete"], keys["modus_incomplete"]}:
                 st.session_state[k] = "2 Sätze"
@@ -160,6 +161,9 @@ def confirm_round(keys: Dict) -> Stage:
 
         stage = Stage(id=stage_name, type=stage_typ, teams=teams, match_list=match_list)
 
+    if st.session_state[keys["standing_selection"]]:
+        stage.add_standing(st.session_state[keys["standing_selection"]])
+
     st.session_state[keys["stage"]] = stage
     st.session_state[keys["stage_ready"]] = True
 
@@ -213,26 +217,15 @@ def render_slider(tournament: Tournament, keys: Dict):
         # todo hier noch mal drüber schauen, welche fälle das betreffen könnte
         num_teams = 0
 
-    if not st.session_state[keys["placing_slider"]]:
-        st.session_state[keys["placing_slider"]] = (1, num_teams)
+    # if not st.session_state[keys["standing_selection"]]:
+    #     st.session_state[keys["standing_slider"]] = (1, num_teams)
 
-    placing = st.slider(
-        f"Welche Plätze sollen für die {num_teams} Teams ausgespielt werden?",
-        min_value=1,
-        max_value=len(tournament.teams),
-        value=st.session_state[keys["placing_slider"]],
-        step=1,
-        key=keys["placing_slider"]
+    standings_options = list(range(1, len(tournament.teams) + 1))
+    st.selectbox(
+        label=f"Um welchen Platz sollen die {num_teams} Teams spielen?",
+        options=standings_options,
+        key=keys["standing_selection"]
     )
-
-    if placing:
-        start, end = placing
-        num_placing = end - start + 1
-
-        if num_placing < num_teams:
-            st.warning("Es sind weniger Platzierungen als Teams in der Runde.")
-        elif num_placing > num_teams:
-            st.warning("Es sind mehr Platzierungen als Teams in der Runde.")
 
 
 def render_direct_stage(tournament: Tournament, keys: Dict):
@@ -514,10 +507,10 @@ def render_round_config(round_idx: int, tournament: Tournament, old_stage_name: 
         "stage": f"stage_{old_stage_name}_{round_idx}",
         "stage_ready": f"stage_ready_{old_stage_name}_{round_idx}",
         "groups_max": f"groups_max_{old_stage_name}_{round_idx}",
-        "placing_slider": f"placing_slider_{old_stage_name}_{round_idx}",
+        "standing_selection": f"standing_selection_{old_stage_name}_{round_idx}",
         "place_from": f"place_from_{old_stage_name}_{round_idx}",
         "place_until": f"place_until_{old_stage_name}_{round_idx}",
-        "placing_bool": f"placing_bool_{old_stage_name}_{round_idx}",
+        "standing_bool": f"standing_bool_{old_stage_name}_{round_idx}",
         "group_list": f"group_list_{old_stage_name}_{round_idx}",
     }
 
@@ -535,7 +528,7 @@ def render_round_config(round_idx: int, tournament: Tournament, old_stage_name: 
 
     checkbox = st.checkbox(
         label="Platzierungsrunde",
-        key=keys["placing_bool"]
+        key=keys["standing_bool"]
     )
 
     if checkbox:
