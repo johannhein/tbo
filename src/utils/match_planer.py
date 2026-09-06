@@ -153,7 +153,7 @@ def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, court
 
 def find_k(teams_1: List, teams_2: List, groups_size: int) -> int:
     """Findet ein k, sodass kein gemeinsames Team aus teams_1 und teams_2 in derselben Gruppe landet."""
-
+    # todo bei ranking group
     if not teams_2:
         return 0
 
