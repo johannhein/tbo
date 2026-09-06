@@ -1,6 +1,8 @@
 import pandas as pd
 import streamlit as st
 
+from core.models import StageType
+
 
 def tab_standings():
     st.header("🏅 Endplatzierungen")
@@ -12,9 +14,41 @@ def tab_standings():
     tournament = st.session_state["tournament"]
     n_teams = len(tournament.teams)
 
+    rankings = []
 
-    standings = tournament.standings
+    for stage in tournament.stages.values():
+        if not stage.is_complete or not stage.standing:
+            continue
 
+        if stage.type == StageType.GROUP:
+            for idx, team in enumerate(stage.table["Team"]):
+                place = idx + stage.standing
+                rankings.append((place, team))
+
+        elif len(stage.teams) == 2:
+            winner = stage.winner[0] if stage.winner else None
+            loser = stage.loser[0] if stage.loser else None
+
+            if winner:
+                rankings.append((stage.standing, winner))
+            if loser:
+                rankings.append((stage.standing + 1, loser))
+
+    rankings.sort(key=lambda x: x[0])
+
+    standings = {}
+    for place, team in rankings:
+        if place not in standings:
+            standings[place] = team
+        # else:
+        #     st.warning(f"⚠️ Platz {place} bereits belegt: {standings[place]}")
+
+    # Fülle Lücken
+    for place in range(1, n_teams + 1):
+        if place not in standings:
+            standings[place] = "Nicht zugewiesen"
+
+    # Erstelle DataFrame
     data = []
     for place in range(1, n_teams + 1):
         team = standings.get(place, "Nicht zugewiesen")
@@ -22,30 +56,18 @@ def tab_standings():
 
     df = pd.DataFrame(data)
 
-    column_config = {
-        "Platzierung": st.column_config.NumberColumn(
-            "Platzierung",
-            width="compact",  # ✅ Nur so breit wie nötig
-            format="%d"
-        ),
-        "Team": st.column_config.TextColumn(
-            "Team",
-            width="compact"  # ✅ Nimmt den Rest
-        )
-    }
-
-    # st.dataframe(df, width='stretch', hide_index=True, column_config=column_config)
+    # Zeige Tabelle
     st.dataframe(
         df,
         column_config={
             "Platzierung": st.column_config.NumberColumn(
                 "Platzierung",
-                width="small",  # ✅ Nur so breit wie nötig
+                width="small",
                 format="%d"
             ),
             "Team": st.column_config.TextColumn(
                 "Team",
-                width="large"  # ✅ Nimmt den Rest
+                width="large"
             )
         },
         width='content',
