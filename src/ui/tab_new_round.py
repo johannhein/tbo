@@ -577,7 +577,7 @@ def render_round_generation(tournament, old_stage_name):
                 tournament.stages[stage_name] = stage_obj
         st.session_state.next_round_generated = True
         st.success(f"✅ {len(st.session_state.next_round_matches)} Runden wurden konfiguriert.")
-        print(tournament.stages.keys())
+        st.rerun()
 
 
 def tab_new_round(old_stage_name: str):
