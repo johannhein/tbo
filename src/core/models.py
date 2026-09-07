@@ -221,7 +221,7 @@ class Stage:
     _last_match_list_hash: Optional[int] = None
 
     @property
-    def is_complete(self) -> bool:
+    def is_ready(self) -> bool:
         """Prüft, ob alle Matches in dieser Stage abgeschlossen sind."""
         if self.type == StageType.GROUP:
             for group in self.groups:
@@ -412,6 +412,13 @@ class Group:
         self.name = name
         self.teams = teams or []
         self.teams_target = teams_target
+
+    @property
+    def is_ready(self) -> bool:
+        """Prüft, ob alle Matches in dieser Gruppe abgeschlossen sind."""
+        if not all(match.status == MatchStatus.FINISHED for match in self.match_list):
+            return False
+        return True
 
     @property
     def num_teams(self) -> int:
