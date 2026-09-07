@@ -5,6 +5,7 @@ import streamlit as st
 from db.court_store import get_connection
 from db.days_store import load_table, delete_row, upsert_row
 
+
 # Streamlit‑Konfiguration
 st.set_page_config(page_title="Tournament Days Editor", layout="wide")
 
