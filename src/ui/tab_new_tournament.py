@@ -654,7 +654,7 @@ def ui_game_modes(incomplete_groups: List[str]) -> None:
         st.info("Alle Gruppen sind vollständig – ein einheitlicher Spielmodus wird verwendet.")
 
 
-def assign_courts(groups: Dict, selected_courts: List[int]):
+def assign_courts(groups: Dict[str, Group], selected_courts: List[int]):
     st.subheader("🔧 Konkrete Felder pro Gruppe zuweisen")
 
     max_total_courts = st.session_state["max_court"]
@@ -729,9 +729,62 @@ def button_create_tournament(tournament_type: str):
         st.success(f"✅ Das {tournament_type}-Turnier wurde erstellt!")
 
 
-# ----------------------------------------------------------------------
+def handling_groups(groups: Dict[str, Group]):
+    selected_courts = st.session_state.get("selected_courts", [])
+    st.session_state["max_court"] = len(selected_courts)
+
+    assign_courts(groups=groups, selected_courts=selected_courts)
+
+    total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
+
+    if total_assigned > st.session_state["max_court"]:
+        st.warning(
+            f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {st.session_state["max_court"]} verfügbar!")
+
+    st.session_state["groups"] = groups
+
+    # Ermittlung unvollständiger Gruppen
+    incomplete = [name for name, grp in groups.items() if not grp.complete]
+    st.session_state["incomplete_groups"] = incomplete
+
+    ui_game_modes(incomplete)
+    groups = st.session_state["groups"]
+
+    # Zuweisung der Spielmodus
+    for name, grp in groups.items():
+        if grp.complete:
+            grp.settings = st.session_state["game_modes"]["complete"]
+        else:
+            grp.settings = st.session_state["game_modes"]["incomplete"]
+
+    st.session_state["groups_final"] = groups
+
+
+def create_group_button(df_category: pd.DataFrame):
+    num_teams = len(df_category)
+    number_groups = ui_basic_settings(num_teams)
+
+    # Gruppen definieren
+    selected_names = ui_select_group_heads(df_category, max_selections=number_groups, )
+
+    if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
+        if "df_table" in st.session_state:
+            df_category = st.session_state["df_table"]
+        st.session_state["group_size"] = math.ceil(num_teams / number_groups)
+        groups = create_groups(
+            group_df=df_category,
+            selected_names=selected_names,
+            num_groups=number_groups,
+            group_size=st.session_state["group_size"],
+        )
+        st.session_state["groups"] = groups
+        st.session_state["group_names"] = list(groups.keys())
+        st.success("✅ Gruppen wurden erstellt!")
+        st.session_state["court_assignments"] = get_default_court_assignments(groups, st.session_state["selected_courts"])
+        st.rerun()
+
+
 # Zusammenbauen der Seite
-# ----------------------------------------------------------------------
 def tab_new_tournament() -> None:
     st.header("Neues Turnier erstellen")
 
@@ -739,6 +792,7 @@ def tab_new_tournament() -> None:
         "complete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
         "incomplete": {"modus": "1 Satz", "points": DEFAULT_POINTS, "tiebreak": None},
     })
+    
     # CSV auswählen / laden
     csv_path = ui_select_csv()
     if not csv_path:
@@ -774,27 +828,7 @@ def tab_new_tournament() -> None:
         df_category = st.session_state["df_table"]
     ui_edit_team_names(df_category, tournament_type)
 
-    num_teams = len(df_category)
-    number_groups = ui_basic_settings(num_teams)
-
-    # Gruppen definieren
-    selected_names = ui_select_group_heads(df_category, max_selections=number_groups, )
-
-    if st.button("🛠️ Gruppen erstellen", key="create_groups_button", type="primary"):
-        if "df_table" in st.session_state:
-            df_category = st.session_state["df_table"]
-        st.session_state["group_size"] = math.ceil(num_teams / number_groups)
-        groups = create_groups(
-            group_df=df_category,
-            selected_names=selected_names,
-            num_groups=number_groups,
-            group_size=st.session_state["group_size"],
-        )
-        st.session_state["groups"] = groups
-        st.session_state["group_names"] = list(groups.keys())
-        st.success("✅ Gruppen wurden erstellt!")
-        st.session_state["court_assignments"] = get_default_court_assignments(groups, st.session_state["selected_courts"])
-        st.rerun()
+    create_group_button(df_category)
 
     # Wenn bereits erstellt → Anzeige + weitere Optionen
     if "groups" in st.session_state:
@@ -811,33 +845,7 @@ def tab_new_tournament() -> None:
         groups = {}
 
     if groups:
-        selected_courts = st.session_state.get("selected_courts", [])
-        st.session_state["max_court"] = len(selected_courts)
-
-        assign_courts(groups=groups, selected_courts=selected_courts)
-
-        total_assigned = sum(len(courts) for courts in st.session_state["court_assignments"].values())
-
-        if total_assigned > st.session_state["max_court"]:
-            st.warning(f"⚠️ Du hast {total_assigned} Felder zugewiesen, aber nur {st.session_state["max_court"]} verfügbar!")
-
-        st.session_state["groups"] = groups
-
-        # Ermittlung unvollständiger Gruppen
-        incomplete = [name for name, grp in groups.items() if not grp.complete]
-        st.session_state["incomplete_groups"] = incomplete
-
-        ui_game_modes(incomplete)
-        groups = st.session_state["groups"]
-
-        # Zuweisung der Spielmodus
-        for name, grp in groups.items():
-            if grp.complete:
-                grp.settings = st.session_state["game_modes"]["complete"]
-            else:
-                grp.settings = st.session_state["game_modes"]["incomplete"]
-
-        st.session_state["groups_final"] = groups
+        handling_groups(groups=groups)
 
     # Turnier erstellen
     button_create_tournament(tournament_type=tournament_type)
