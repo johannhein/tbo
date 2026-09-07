@@ -149,8 +149,36 @@ def match_making_x_vs_y(teams_1: List[str], teams_2: List[str], courts: List[int
     return matches
 
 
-def build_groups(teams_1: List[str], teams_2: List[str], groups_size: int, courts: List,
-                 group_1: List = None, group_2: List = None) -> List[Group]:
+def build_groups(teams: List[str], groups_size: int, courts: List, rank: int = None, final_rank: int = None) -> List[Group]:
+    if rank:
+        if final_rank:
+            group_name = f"Finalrunde Platz {final_rank}-{final_rank + len(teams) - 1}"
+        else:
+            group_name = f"Zwischenrunde aller {rank}. Platzierten"
+        group = Group(name=group_name, teams=teams, teams_target=groups_size)
+        group.assign_courts(courts)
+        return [group]
+    else:
+        list_ranks = [teams[i:i + groups_size] for i in range(0, len(teams), groups_size)]
+        groups = []
+        for idx, team_list in enumerate(list_ranks):
+            if final_rank:
+                start_rank = final_rank + idx * groups_size
+                if start_rank + groups_size <= len(teams):
+                    group_name = f"Finalrunde Platz {start_rank}-{start_rank + groups_size - 1}"
+                else:
+                    group_name = f"Finalrunde Platz {start_rank}-{len(teams) - 1}"
+            else:
+                group_name = f"Zwischenrunde aller {idx}. Platzierten"
+            group = Group(name=group_name, teams=team_list, teams_target=groups_size)
+            group.assign_courts([courts[idx]])
+            groups.append(group)
+
+        return groups
+
+
+def build_groups_with_moving(teams_1: List[str], teams_2: List[str], groups_size: int, courts: List,
+                             group_1: List = None, group_2: List = None) -> List[Group]:
     """
     Erzeugt Gruppen aus teams_1 und einer verschobenen teams_2-Liste.
     Dabei wird automatisch ein k gesucht, sodass kein Team gegen ein Team aus seiner vorherigen Gruppe spielt.
